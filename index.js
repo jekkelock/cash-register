@@ -2,12 +2,13 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const config = require('./config');
 
 const app = express();
-const port = 3000;
+const port = config.server.port;
 
 // Initialize database
-const db = new sqlite3.Database('cash_register.db', (err) => {
+const db = new sqlite3.Database(config.database.filename, (err) => {
     if (err) {
         console.error('Error opening database:', err);
         return;
@@ -17,7 +18,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     // Create system_logs table for tracking all actions
     db.run(`CREATE TABLE IF NOT EXISTS system_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         user TEXT NOT NULL,
         action_type TEXT NOT NULL,
         entity_type TEXT NOT NULL,
@@ -34,13 +35,47 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
         console.log('System logs table ready');
     });
 
+    // Create register_config table for storing register settings
+    db.run(`CREATE TABLE IF NOT EXISTS register_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        base_amount DECIMAL(10,2) NOT NULL,
+        last_modified DATETIME DEFAULT (datetime('now', 'localtime')),
+        modified_by TEXT NOT NULL
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating register_config table:', err);
+            return;
+        }
+        console.log('Register config table ready');
+
+        // Initialize with default base amount if empty
+        db.get('SELECT * FROM register_config', [], (err, row) => {
+            if (err) {
+                console.error('Error checking register config:', err);
+                return;
+            }
+            if (!row) {
+                db.run(`INSERT INTO register_config (base_amount, modified_by) VALUES (?, ?)`,
+                    [300.00, 'system'],
+                    (err) => {
+                        if (err) {
+                            console.error('Error initializing register config:', err);
+                            return;
+                        }
+                        console.log('Register config initialized with default base amount');
+                    }
+                );
+            }
+        });
+    });
+
     // Create fiscal_periods table first as it's fundamental to the system
     db.run(`CREATE TABLE IF NOT EXISTS fiscal_periods (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         current_date DATE NOT NULL,
         closure_number INTEGER NOT NULL,
         status TEXT DEFAULT 'ACTIVE',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
         closed_at DATETIME
     )`, (err) => {
         if (err) {
@@ -59,7 +94,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
             if (!row) {
                 // Initialize with first fiscal period if none exists
                 db.run(`INSERT INTO fiscal_periods (current_date, closure_number, status) 
-                       VALUES (date('now'), 1, 'ACTIVE')`, (err) => {
+                       VALUES (datetime('now', 'localtime'), 1, 'ACTIVE')`, (err) => {
                     if (err) {
                         console.error('Error initializing fiscal period:', err);
                         return;
@@ -73,7 +108,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     // Create transactions table if it doesn't exist
     db.run(`CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         fiscal_date DATE,
         amount DECIMAL(10,2) NOT NULL,
         payment_method TEXT NOT NULL,
@@ -142,7 +177,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
     )`, (err) => {
         if (err) {
             console.error('Error creating users table:', err);
@@ -175,7 +210,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     // Create separate invoice payments table
     db.run(`CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         fiscal_date DATE,
         amount DECIMAL(10,2) NOT NULL,
         date_issued DATE NOT NULL,
@@ -225,7 +260,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     // Create debts table
     db.run(`CREATE TABLE IF NOT EXISTS debts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         fiscal_date DATE,
         person_name TEXT NOT NULL,
         amount_taken DECIMAL(10,2) NOT NULL,
@@ -276,7 +311,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     // Create station closures table
     db.run(`CREATE TABLE IF NOT EXISTS station_closures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         fiscal_date DATE,
         station TEXT NOT NULL,
         grand_total DECIMAL(10,2) NOT NULL,
@@ -404,21 +439,8 @@ app.post('/api/login', (req, res) => {
 
 class CashRegister {
     constructor() {
-        this.defaultDrawer = {
-            CENT1: { value: 0.01, quantity: 100 },
-            CENT2: { value: 0.02, quantity: 100 },
-            CENT5: { value: 0.05, quantity: 100 },
-            CENT10: { value: 0.10, quantity: 100 },
-            CENT20: { value: 0.20, quantity: 100 },
-            CENT50: { value: 0.50, quantity: 100 },
-            EURO1: { value: 1.00, quantity: 100 },
-            EURO2: { value: 2.00, quantity: 100 },
-            EURO5: { value: 5.00, quantity: 20 },
-            EURO10: { value: 10.00, quantity: 10 },
-            EURO20: { value: 20.00, quantity: 5 },
-            EURO50: { value: 50.00, quantity: 5 },
-            EURO100: { value: 100.00, quantity: 2 }
-        };
+        this.defaultDrawer = config.register.drawer;
+        this.baseAmount = config.register.baseAmount;
         this.initializeDrawer();
     }
 
@@ -558,7 +580,7 @@ class CashRegister {
 
                     const sql = `INSERT INTO invoices 
                         (amount, date_issued, recipient_name, vat_number, status, user, fiscal_date) 
-                        VALUES (?, ?, ?, ?, ?, ?, date('now'))`;
+                        VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
                     
                     const result = await new Promise((res, rej) => {
                         db.run(sql, [
@@ -610,7 +632,7 @@ class CashRegister {
                 // Handle cash and card payments
                 const sql = `INSERT INTO transactions 
                     (amount, payment_method, payment_type, card_last_digits, user, fiscal_date) 
-                    VALUES (?, ?, ?, ?, ?, date('now'))`;
+                    VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
                 
                 const result = await new Promise((res, rej) => {
                     db.run(sql, [
@@ -1075,7 +1097,7 @@ app.post('/api/users', (req, res) => {
 // Create a function to handle debt operations
 async function createDebt(person_name, amount_taken, description, username, req) {
     const sql = `INSERT INTO debts (person_name, amount_taken, description, user, fiscal_date) 
-                 VALUES (?, ?, ?, ?, date('now'))`;
+                 VALUES (?, ?, ?, ?, datetime('now', 'localtime'))`;
 
     try {
         // Start transaction
@@ -1266,7 +1288,7 @@ app.put('/api/debts/:id', async (req, res) => {
         if (invoice_amount > 0) {
             const invoiceSql = `INSERT INTO invoices 
                 (amount, date_issued, recipient_name, status, user, fiscal_date) 
-                VALUES (?, date('now'), ?, 'SUCCESS', ?, date('now'))`;
+                VALUES (?, datetime('now', 'localtime'), ?, 'SUCCESS', ?, datetime('now', 'localtime'))`;
             
             await new Promise((resolve, reject) => {
                 db.run(invoiceSql, [invoice_amount, invoice_company, username], function(err) {
@@ -1529,7 +1551,7 @@ app.post('/api/station-closure', async (req, res) => {
         const closureResult = await dbRun(
             `INSERT INTO station_closures (
                 station, grand_total, room_charges, complementary, net_amount, user, fiscal_date
-            ) VALUES (?, ?, ?, ?, ?, ?, date('now'))`,
+            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
             [station, grandTotal, roomCharges || 0, complementary || 0, cashAmount + cardAmount, username]
         );
 
@@ -1562,7 +1584,7 @@ app.post('/api/station-closure', async (req, res) => {
             const transactionResult = await dbRun(
                 `INSERT INTO transactions (
                     amount, payment_method, payment_type, user, description, fiscal_date
-                ) VALUES (?, ?, ?, ?, ?, date('now'))`,
+                ) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
                 [cardAmount, 'card', stationDisplay, username, `${stationDisplay} closure - card payments (ID: ${closureId})`]
             );
 
@@ -1686,7 +1708,7 @@ app.post('/api/register-closure', async (req, res) => {
         await dbRun(
             `UPDATE fiscal_periods 
              SET status = 'CLOSED', 
-                 closed_at = datetime('now') 
+                 closed_at = datetime('now', 'localtime') 
              WHERE id = ?`,
             [currentPeriod.id]
         );
@@ -1698,7 +1720,7 @@ app.post('/api/register-closure', async (req, res) => {
                 closure_number, 
                 status
             ) VALUES (
-                date('now', '+1 day'),
+                datetime('now', 'localtime', '+1 day'),
                 ?,
                 'ACTIVE'
             )`,
@@ -1750,6 +1772,57 @@ app.get('/api/fiscal-periods', (req, res) => {
             res.json({
                 status: 'SUCCESS',
                 fiscalPeriods: rows
+            });
+        }
+    );
+});
+
+// Get register base amount
+app.get('/api/register/base-amount', (req, res) => {
+    db.get('SELECT base_amount FROM register_config ORDER BY id DESC LIMIT 1', [], (err, row) => {
+        if (err) {
+            console.error('Error fetching base amount:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to fetch base amount'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            baseAmount: row ? row.base_amount : 300.00
+        });
+    });
+});
+
+// Update register base amount
+app.put('/api/register/base-amount', (req, res) => {
+    const { baseAmount } = req.body;
+    const username = req.headers['x-user'] || 'system';
+
+    if (!baseAmount || isNaN(baseAmount) || baseAmount < 0) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Valid base amount is required'
+        });
+    }
+
+    db.run(
+        `INSERT INTO register_config (base_amount, modified_by) VALUES (?, ?)`,
+        [baseAmount, username],
+        function(err) {
+            if (err) {
+                console.error('Error updating base amount:', err);
+                return res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to update base amount'
+                });
+            }
+
+            res.json({
+                status: 'SUCCESS',
+                message: 'Base amount updated successfully',
+                baseAmount: baseAmount
             });
         }
     );
@@ -1840,6 +1913,16 @@ app.get('/api/logs', async (req, res) => {
             status: 'SUCCESS',
             logs: rows
         });
+    });
+});
+
+// Add API endpoint to get register configuration
+app.get('/api/register/config', (req, res) => {
+    res.json({
+        status: 'SUCCESS',
+        config: {
+            baseAmount: config.register.baseAmount
+        }
     });
 });
 
