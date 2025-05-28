@@ -81,7 +81,7 @@
         .search-box i {
             position: absolute;
             left: 10px;
-            top: 33px;
+            top: 38px;
             transform: translateY(-50%);
             color: #6c757d;
         }
@@ -113,6 +113,24 @@
         }
         .apply-filters:hover {
             background-color: #0056b3;
+        }
+        .refresh-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .refresh-button:hover {
+            color: #0056b3;
         }
         .transactions-table {
             width: 100%;
@@ -215,6 +233,10 @@
 
         <div class="header">
             <h1>Edit Transactions</h1>
+            <button onclick="loadTransactions()" class="refresh-button">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+            </button>
         </div>
 
         <div class="filters">
@@ -229,10 +251,6 @@
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
                 </select>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="show-invoices">
-                    <label for="show-invoices">Show Invoices</label>
-                </div>
             </div>
             <div class="filter-group">
                 <label for="payment-type">Payment Type</label>
@@ -342,8 +360,11 @@
 
         // Load transactions when page loads
         document.addEventListener('DOMContentLoaded', () => {
-            // Set show-invoices to unchecked by default
-            document.getElementById('show-invoices').checked = false;
+            // Set today's date in the date picker
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-range').value = `${today} to ${today}`;
+            
+            // Load initial transactions
             loadTransactions();
         });
         
@@ -359,7 +380,6 @@
             const paymentMethod = document.getElementById('payment-method').value;
             const paymentType = document.getElementById('payment-type').value;
             const search = document.getElementById('search').value;
-            const showInvoices = document.getElementById('show-invoices').checked;
 
             // Construct the query parameters
             const params = new URLSearchParams();
@@ -367,56 +387,40 @@
             if (paymentMethod) params.append('paymentMethod', paymentMethod);
             if (paymentType) params.append('paymentType', paymentType);
             if (search) params.append('search', search);
-            params.append('showInvoices', showInvoices);
 
-            // Fetch transactions and invoices based on filters
-            Promise.all([
-                fetch(`/api/transactions?${params.toString()}`).then(res => res.json()),
-                showInvoices ? fetch(`/api/invoices?${params.toString()}`).then(res => res.json()) : Promise.resolve([])
-            ])
-            .then(([transactions, invoices]) => {
-                const tbody = document.getElementById('transactions-body');
-                tbody.innerHTML = '';
+            fetch(`/api/transactions?${params.toString()}`)
+                .then(response => response.json())
+                .then(transactions => {
+                    const tbody = document.getElementById('transactions-body');
+                    tbody.innerHTML = '';
 
-                // Combine and sort transactions and invoices by timestamp
-                const allTransactions = [
-                    ...transactions,
-                    ...invoices.map(invoice => ({
-                        ...invoice,
-                        payment_method: 'invoice',
-                        payment_type: 'INVOICE',
-                        recipient_name: invoice.recipient_name,
-                        is_invoice: true
-                    }))
-                ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    if (transactions.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="6" class="no-results">No transactions found</td>
+                            </tr>
+                        `;
+                        return;
+                    }
 
-                if (allTransactions.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="6" class="no-results">No transactions found</td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                allTransactions.forEach(transaction => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${new Date(transaction.timestamp).toLocaleString()}</td>
-                        <td>${transaction.amount.toFixed(2)}</td>
-                        <td>${transaction.payment_method}${transaction.recipient_name ? ` (${transaction.recipient_name})` : ''}</td>
-                        <td>${transaction.payment_type}</td>
-                        <td>${transaction.status}</td>
-                        <td>
-                            <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            })
-            .catch(error => console.error('Error loading transactions:', error));
+                    transactions.forEach(transaction => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${new Date(transaction.timestamp).toLocaleString()}</td>
+                            <td>${transaction.amount.toFixed(2)}</td>
+                            <td>${transaction.payment_method}</td>
+                            <td>${transaction.payment_type}</td>
+                            <td>${transaction.status}</td>
+                            <td>
+                                <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error loading transactions:', error));
         }
 
         function openEditModal(transaction) {
