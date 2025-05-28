@@ -300,6 +300,11 @@
                     <input type="number" id="complementary" step="0.01" value="0" required>
                     <span class="unit">€</span>
                 </div>
+                <div class="input-group">
+                    <label>Card Payments</label>
+                    <input type="number" id="card-amount" step="0.01" value="0" required>
+                    <span class="unit">€</span>
+                </div>
                 <div class="total-section">
                     <div class="total-row">
                         <span>Grand Total:</span>
@@ -313,9 +318,13 @@
                         <span>Maison:</span>
                         <span id="display-complementary">-€0.00</span>
                     </div>
+                    <div class="total-row">
+                        <span>Card Payments:</span>
+                        <span id="display-card-amount">-€0.00</span>
+                    </div>
                     <hr>
                     <div class="total-row">
-                        <span>Net Amount:</span>
+                        <span>Cash Amount:</span>
                         <span class="total-amount" id="net-amount">€0.00</span>
                     </div>
                 </div>
@@ -540,19 +549,22 @@
             const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
             const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
             const complementary = parseFloat(document.getElementById('complementary').value || 0);
+            const cardAmount = parseFloat(document.getElementById('card-amount').value || 0);
             
             document.getElementById('display-grand-total').textContent = `€${grandTotal.toFixed(2)}`;
             document.getElementById('display-room-charges').textContent = `-€${roomCharges.toFixed(2)}`;
             document.getElementById('display-complementary').textContent = `-€${complementary.toFixed(2)}`;
+            document.getElementById('display-card-amount').textContent = `-€${cardAmount.toFixed(2)}`;
             
-            const netAmount = grandTotal - roomCharges - complementary;
-            document.getElementById('net-amount').textContent = `€${netAmount.toFixed(2)}`;
+            const cashAmount = grandTotal - roomCharges - complementary - cardAmount;
+            document.getElementById('net-amount').textContent = `€${cashAmount.toFixed(2)}`;
         }
 
         // Add event listeners for input changes
         document.getElementById('grand-total').addEventListener('input', updateTotals);
         document.getElementById('room-charges').addEventListener('input', updateTotals);
         document.getElementById('complementary').addEventListener('input', updateTotals);
+        document.getElementById('card-amount').addEventListener('input', updateTotals);
 
         // Handle form submission
         document.getElementById('closure-form').addEventListener('submit', async function(e) {
@@ -569,10 +581,11 @@
                 const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
                 const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
                 const complementary = parseFloat(document.getElementById('complementary').value || 0);
-                const netAmount = grandTotal - roomCharges - complementary;
+                const cardAmount = parseFloat(document.getElementById('card-amount').value || 0);
+                const cashAmount = grandTotal - roomCharges - complementary - cardAmount;
 
                 // Validate numbers
-                if (isNaN(grandTotal) || isNaN(roomCharges) || isNaN(complementary) || isNaN(netAmount)) {
+                if (isNaN(grandTotal) || isNaN(roomCharges) || isNaN(complementary) || isNaN(cardAmount) || isNaN(cashAmount)) {
                     alert('Please enter valid numbers for all amounts');
                     return;
                 }
@@ -582,7 +595,8 @@
                     grandTotal,
                     roomCharges,
                     complementary,
-                    netAmount
+                    cardAmount,
+                    cashAmount
                 });
 
                 const response = await fetch('/api/station-closure', {
@@ -596,7 +610,8 @@
                         grandTotal,
                         roomCharges,
                         complementary,
-                        netAmount
+                        cardAmount,
+                        cashAmount
                     })
                 });
 
@@ -608,13 +623,14 @@
 
                 if (result.status === 'SUCCESS') {
                     alert('Station closure processed successfully');
-                    // Refresh the last closure display
-                    document.getElementById('station').dispatchEvent(new Event('change'));
                     // Clear the form
                     document.getElementById('grand-total').value = '0';
                     document.getElementById('room-charges').value = '0';
                     document.getElementById('complementary').value = '0';
+                    document.getElementById('card-amount').value = '0';
                     updateTotals();
+                    // Refresh the last closure display
+                    document.getElementById('station').dispatchEvent(new Event('change'));
                 } else {
                     throw new Error(result.message || 'Failed to process station closure');
                 }

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register - Register Closure</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-section {
+            position: relative;
+            height: 40px;
+            margin-bottom: 20px;
+        }
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 16px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .back-button:hover {
+            color: #0056b3;
+        }
+        .back-button i {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        .logout-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .info-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-weight: 500;
+            color: #495057;
+        }
+        .info-value {
+            font-size: 1.1em;
+            color: #212529;
+        }
+        .total-section {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            font-size: 1.2em;
+        }
+        .total-amount {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .action-button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+        .process-button {
+            background-color: #28a745;
+            color: white;
+        }
+        .process-button:hover {
+            background-color: #218838;
+        }
+        .process-button i {
+            margin-right: 8px;
+        }
+        .warning {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-section">
+            <a href="/" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <button onclick="logout()" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+
+        <div class="header">
+            <h1>Register Closure</h1>
+        </div>
+
+        <div class="info-section">
+            <div class="info-row">
+                <span class="info-label">Base Register Amount:</span>
+                <span class="info-value">€800.00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Cash Income:</span>
+                <span class="info-value" id="cash-income">€0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Cash from Closures:</span>
+                <span class="info-value" id="closure-cash">€0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Expenses (Debts + Invoices):</span>
+                <span class="info-value" id="expenses">-€0.00</span>
+            </div>
+        </div>
+
+        <div class="total-section">
+            <div class="total-row">
+                <span>Amount to Move to Safe:</span>
+                <span class="total-amount" id="safe-amount">€0.00</span>
+            </div>
+            <div class="total-row">
+                <span>Amount to Keep in Register:</span>
+                <span class="total-amount">€800.00</span>
+            </div>
+        </div>
+
+        <button id="process-button" class="action-button process-button">
+            <i class="fas fa-lock"></i>
+            Process Register Closure
+        </button>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+            loadRegisterData();
+        });
+
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'x-user': localStorage.getItem('username')
+            };
+        }
+
+        async function loadRegisterData() {
+            try {
+                // Get current fiscal period
+                const periodResponse = await fetch('/api/fiscal-period/current', {
+                    headers: getAuthHeaders()
+                });
+                const periodData = await periodResponse.json();
+                
+                if (periodData.status !== 'SUCCESS') {
+                    throw new Error('Failed to fetch fiscal period');
+                }
+
+                const currentDate = new Date(periodData.fiscalPeriod.current_date);
+                
+                // Get all transactions for the current fiscal date
+                const response = await fetch('/api/transactions?' + new URLSearchParams({
+                    dateRange: `${currentDate.toISOString().split('T')[0]} to ${currentDate.toISOString().split('T')[0]}`
+                }), {
+                    headers: getAuthHeaders()
+                });
+                
+                const transactions = await response.json();
+                
+                // Calculate totals
+                let cashIncome = 0;
+                let closureCash = 0;
+                let expenses = 0;
+
+                transactions.forEach(transaction => {
+                    const amount = parseFloat(transaction.amount);
+                    
+                    if (transaction.payment_method === 'cash' && amount > 0) {
+                        cashIncome += amount;
+                    } else if (transaction.payment_method === 'station_closure') {
+                        // Assuming 70% of closure amount is cash (you may want to adjust this)
+                        closureCash += amount * 0.7;
+                    } else if (['debt', 'invoice'].includes(transaction.payment_method) && amount < 0) {
+                        expenses += Math.abs(amount);
+                    }
+                });
+
+                // Update display
+                document.getElementById('cash-income').textContent = `€${cashIncome.toFixed(2)}`;
+                document.getElementById('closure-cash').textContent = `€${closureCash.toFixed(2)}`;
+                document.getElementById('expenses').textContent = `-€${expenses.toFixed(2)}`;
+
+                // Calculate amount to move to safe (total - base amount)
+                const totalCash = 800 + cashIncome + closureCash - expenses;
+                const moveToSafe = totalCash - 800;
+                document.getElementById('safe-amount').textContent = `€${moveToSafe.toFixed(2)}`;
+
+            } catch (error) {
+                console.error('Error loading register data:', error);
+                alert('Error loading register data: ' + error.message);
+            }
+        }
+
+        document.getElementById('process-button').addEventListener('click', async () => {
+            if (confirm('Are you sure you want to process the register closure? This will close the current fiscal period.')) {
+                try {
+                    const response = await fetch('/api/register-closure', {
+                        method: 'POST',
+                        headers: getAuthHeaders()
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.status === 'SUCCESS') {
+                        alert('Register closure processed successfully');
+                        window.location.href = '/';
+                    } else {
+                        throw new Error(result.message || 'Failed to process closure');
+                    }
+                } catch (error) {
+                    console.error('Error processing closure:', error);
+                    alert('Error: ' + error.message);
+                }
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('username');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html> 

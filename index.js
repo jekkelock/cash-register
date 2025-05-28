@@ -1212,7 +1212,7 @@ app.put('/api/station-closure/:id', async (req, res) => {
 // Add API endpoint for creating new station closure
 app.post('/api/station-closure', async (req, res) => {
     console.log('Received station closure request:', req.body);
-    const { station, grandTotal, roomCharges, complementary, netAmount } = req.body;
+    const { station, grandTotal, roomCharges, complementary, cardAmount, cashAmount } = req.body;
     const username = req.headers['x-user'] || 'system';
 
     // Validate input data
@@ -1225,13 +1225,18 @@ app.post('/api/station-closure', async (req, res) => {
     }
 
     // Validate numeric values
-    if (isNaN(grandTotal) || isNaN(netAmount)) {
-        console.error('Invalid amounts:', { grandTotal, netAmount });
+    if (isNaN(grandTotal) || isNaN(cashAmount) || isNaN(cardAmount)) {
+        console.error('Invalid amounts:', { grandTotal, cashAmount, cardAmount });
         return res.status(400).json({
             status: 'ERROR',
             message: 'Invalid amount values'
         });
     }
+
+    // Format station name for display (convert pool_bar to Pool Bar)
+    const stationDisplay = station.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 
     // Create a promise-based version of db.run
     const dbRun = (sql, params) => new Promise((resolve, reject) => {
@@ -1245,57 +1250,37 @@ app.post('/api/station-closure', async (req, res) => {
         console.log('Starting transaction for station closure');
         await dbRun('BEGIN TRANSACTION');
 
-        console.log('Inserting into station_closures table');
         // Insert into station_closures table
         const closureResult = await dbRun(
             `INSERT INTO station_closures (
-                station, grand_total, room_charges, complementary, net_amount, user
-            ) VALUES (?, ?, ?, ?, ?, ?)`,
-            [station, grandTotal, roomCharges || 0, complementary || 0, netAmount, username]
+                station, grand_total, room_charges, complementary, net_amount, user, fiscal_date
+            ) VALUES (?, ?, ?, ?, ?, ?, date('now'))`,
+            [station, grandTotal, roomCharges || 0, complementary || 0, cashAmount + cardAmount, username]
         );
 
         const closureId = closureResult.lastID;
         console.log('Station closure record created with ID:', closureId);
 
-        // Insert main closure transaction
-        console.log('Adding main closure transaction');
-        await dbRun(
-            `INSERT INTO transactions (
-                amount, payment_method, payment_type, user, description
-            ) VALUES (?, ?, ?, ?, ?)`,
-            [grandTotal, 'station_closure', 'closure', username, `${station} closure (ID: ${closureId})`]
-        );
-
-        // Insert room charges if any
-        if (roomCharges > 0) {
-            console.log('Adding room charges transaction');
+        // Only create a transaction for card payments
+        if (cardAmount > 0) {
+            console.log('Adding card transaction');
             await dbRun(
                 `INSERT INTO transactions (
-                    amount, payment_method, payment_type, user, description
-                ) VALUES (?, ?, ?, ?, ?)`,
-                [-roomCharges, 'room_charge', 'deduction', username, `${station} room charges (Closure ID: ${closureId})`]
+                    amount, payment_method, payment_type, user, description, fiscal_date
+                ) VALUES (?, ?, ?, ?, ?, date('now'))`,
+                [cardAmount, 'card', stationDisplay, username, `${stationDisplay} closure - card payments (ID: ${closureId})`]
             );
         }
 
-        // Insert complementary charges if any
-        if (complementary > 0) {
-            console.log('Adding complementary transaction');
-            await dbRun(
-                `INSERT INTO transactions (
-                    amount, payment_method, payment_type, user, description
-                ) VALUES (?, ?, ?, ?, ?)`,
-                [-complementary, 'complementary', 'deduction', username, `${station} complementary (Closure ID: ${closureId})`]
-            );
-        }
-
-        console.log('All transactions completed successfully');
         await dbRun('COMMIT');
+        console.log('Station closure processed successfully');
 
         res.json({
             status: 'SUCCESS',
             message: 'Station closure processed successfully',
             closureId,
-            netAmount
+            cashAmount,
+            cardAmount
         });
     } catch (error) {
         console.error('Error in station closure process:', error);
