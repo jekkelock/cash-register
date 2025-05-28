@@ -339,7 +339,7 @@
                         <th>Amount (€)</th>
                         <th>Payment Method</th>
                         <th>Payment Type</th>
-                        <th>Status</th>
+                        <th>Card Last Digits</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -362,10 +362,14 @@
                     </div>
                     <div>
                         <label for="edit-payment-method">Payment Method</label>
-                        <select id="edit-payment-method" required>
+                        <select id="edit-payment-method" required onchange="toggleCardLastDigits()">
                             <option value="cash">Cash</option>
                             <option value="card">Card</option>
                         </select>
+                    </div>
+                    <div id="edit-card-digits-group" style="display: none;">
+                        <label for="edit-card-last-digits">Last 4 Digits</label>
+                        <input type="text" id="edit-card-last-digits" maxlength="4" pattern="\d{4}" placeholder="Enter last 4 digits">
                     </div>
                     <div>
                         <label for="edit-payment-type">Payment Type</label>
@@ -377,14 +381,6 @@
                             <option value="CHARGING STATION">CHARGING STATION</option>
                             <option value="TRANSFER">TRANSFER</option>
                             <option value="OTHER">OTHER</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="edit-status">Status</label>
-                        <select id="edit-status" required>
-                            <option value="SUCCESS">Success</option>
-                            <option value="PENDING">Pending</option>
-                            <option value="FAILED">Failed</option>
                         </select>
                     </div>
                     <button type="submit" class="save-button">Save Changes</button>
@@ -401,7 +397,6 @@
         let currentView = 'table'; // 'table' or 'list'
         const paymentMethods = ['cash', 'card'];
         const paymentTypes = ['TAX', 'ACCOM', 'EXTRAS', 'DAY USE', 'CHARGING STATION', 'TRANSFER', 'OTHER'];
-        const statusTypes = ['SUCCESS', 'PENDING', 'FAILED'];
 
         function toggleView() {
             const tableView = document.getElementById('table-view');
@@ -473,11 +468,14 @@
                             width: 150
                         },
                         {
-                            data: 'status',
-                            type: 'dropdown',
-                            source: statusTypes,
-                            title: 'Status',
-                            width: 100
+                            data: 'card_last_digits',
+                            title: 'Card Last Digits',
+                            width: 120,
+                            renderer: function(instance, td, row, col, prop, value, cellProperties) {
+                                const paymentMethod = instance.getDataAtRowProp(row, 'payment_method');
+                                td.innerHTML = paymentMethod === 'card' ? (value || '') : '';
+                                return td;
+                            }
                         }
                     ],
                     rowHeaders: true,
@@ -497,6 +495,11 @@
                                 hot.setCellMeta(row, hot.propToCol(prop), 'className', 'invalid');
                             } else {
                                 hot.setCellMeta(row, hot.propToCol(prop), 'className', '');
+                            }
+
+                            // Clear card last digits when payment method changes to cash
+                            if (prop === 'payment_method' && newValue === 'cash') {
+                                hot.setDataAtRowProp(row, 'card_last_digits', null);
                             }
                         });
                         
@@ -525,7 +528,7 @@
                     <td>${transaction.amount.toFixed(2)}</td>
                     <td>${transaction.payment_method}</td>
                     <td>${transaction.payment_type}</td>
-                    <td>${transaction.status}</td>
+                    <td>${transaction.payment_method === 'card' ? (transaction.card_last_digits || '') : ''}</td>
                     <td>
                         <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
                             <i class="fas fa-edit"></i>
@@ -571,13 +574,30 @@
                 });
         }
 
+        function toggleCardLastDigits() {
+            const paymentMethod = document.getElementById('edit-payment-method').value;
+            const cardDigitsGroup = document.getElementById('edit-card-digits-group');
+            const cardLastDigitsInput = document.getElementById('edit-card-last-digits');
+            
+            if (paymentMethod === 'card') {
+                cardDigitsGroup.style.display = 'block';
+                cardLastDigitsInput.required = true;
+            } else {
+                cardDigitsGroup.style.display = 'none';
+                cardLastDigitsInput.required = false;
+                cardLastDigitsInput.value = '';
+            }
+        }
+
         function openEditModal(transaction) {
             document.getElementById('edit-modal').style.display = 'block';
             document.getElementById('edit-id').value = transaction.id;
             document.getElementById('edit-amount').value = transaction.amount;
             document.getElementById('edit-payment-method').value = transaction.payment_method;
             document.getElementById('edit-payment-type').value = transaction.payment_type;
-            document.getElementById('edit-status').value = transaction.status;
+            document.getElementById('edit-card-last-digits').value = transaction.card_last_digits || '';
+            
+            toggleCardLastDigits();
         }
 
         function closeModal() {
@@ -587,13 +607,23 @@
         document.getElementById('edit-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const transactionId = document.getElementById('edit-id').value;
+            const paymentMethod = document.getElementById('edit-payment-method').value;
 
             const updatedTransaction = {
                 amount: parseFloat(document.getElementById('edit-amount').value),
-                payment_method: document.getElementById('edit-payment-method').value,
-                payment_type: document.getElementById('edit-payment-type').value,
-                status: document.getElementById('edit-status').value
+                payment_method: paymentMethod,
+                payment_type: document.getElementById('edit-payment-type').value
             };
+
+            // Handle card last digits based on payment method
+            if (paymentMethod === 'card') {
+                const cardLastDigits = document.getElementById('edit-card-last-digits').value;
+                if (!cardLastDigits || !/^\d{4}$/.test(cardLastDigits)) {
+                    alert('Please enter valid last 4 digits for card payment');
+                    return;
+                }
+                updatedTransaction.card_last_digits = cardLastDigits;
+            }
 
             fetch(`/api/transactions/${transactionId}`, {
                 method: 'PUT',
@@ -641,6 +671,89 @@
 
         function goBack() {
             window.location = '/bulk-actions';
+        }
+
+        function saveChanges() {
+            if (!hot) return;
+
+            const currentData = hot.getData();
+            const changes = [];
+
+            currentData.forEach((row, index) => {
+                const original = originalData[index];
+                const current = hot.getSourceDataAtRow(index);
+                
+                // Add debug logging
+                console.log('Row', index, 'Original:', original, 'Current:', current);
+                
+                if (JSON.stringify(original) !== JSON.stringify(current)) {
+                    // Validate amount and ensure it's a number
+                    const amount = parseFloat(current.amount);
+                    if (isNaN(amount) || amount <= 0) {
+                        alert(`Invalid amount in row ${index + 1}`);
+                        return;
+                    }
+
+                    // Ensure all required fields are present
+                    if (!current.payment_method || !current.payment_type) {
+                        alert(`Missing required fields in row ${index + 1}`);
+                        return;
+                    }
+
+                    changes.push({
+                        id: current.id,
+                        updates: {
+                            amount: amount,
+                            payment_method: current.payment_method,
+                            payment_type: current.payment_type
+                        }
+                    });
+                }
+            });
+
+            if (changes.length === 0) {
+                alert('No changes to save');
+                return;
+            }
+
+            console.log('Changes to be saved:', changes);
+
+            // Save changes sequentially with better error handling
+            Promise.all(changes.map(change => 
+                fetch(`/api/transactions/${change.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(change.updates)
+                })
+                .then(async response => {
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error(`Error updating transaction ${change.id}:`, error);
+                    throw error;
+                })
+            ))
+            .then(results => {
+                console.log('Save results:', results);
+                const failures = results.filter(r => r.status !== 'SUCCESS');
+                if (failures.length > 0) {
+                    console.error('Failed updates:', failures);
+                    alert(`Failed to save ${failures.length} changes. Please check the console for details.`);
+                } else {
+                    alert('All changes saved successfully');
+                    loadTransactions(); // Refresh the data
+                }
+            })
+            .catch(error => {
+                console.error('Error saving changes:', error);
+                alert(`Failed to save changes: ${error.message}`);
+            });
         }
     </script>
 </body>

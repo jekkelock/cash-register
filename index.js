@@ -22,7 +22,6 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
         payment_method TEXT NOT NULL,
         payment_type TEXT NOT NULL,
         card_last_digits TEXT,
-        status TEXT NOT NULL,
         user TEXT DEFAULT 'system'
     )`, (err) => {
         if (err) {
@@ -137,15 +136,14 @@ class CashRegister {
 
             // Handle cash and card payments
             const sql = `INSERT INTO transactions 
-                (amount, payment_method, payment_type, card_last_digits, status, user) 
-                VALUES (?, ?, ?, ?, ?, ?)`;
+                (amount, payment_method, payment_type, card_last_digits, user) 
+                VALUES (?, ?, ?, ?, ?)`;
             
             db.run(sql, [
                 amount,
                 paymentMethod,
                 paymentType,
                 cardLastDigits,
-                'SUCCESS',
                 'system' // Will be replaced with actual user once login is implemented
             ], function(err) {
                 if (err) {
@@ -190,6 +188,68 @@ class CashRegister {
                     return;
                 }
                 resolve(rows);
+            });
+        });
+    }
+
+    updateTransaction(id, updates) {
+        return new Promise((resolve, reject) => {
+            // Validate required fields
+            if (!updates.amount || isNaN(updates.amount) || updates.amount <= 0) {
+                reject({ status: 'ERROR', message: 'Invalid amount' });
+                return;
+            }
+
+            if (!updates.payment_method || !['cash', 'card'].includes(updates.payment_method.toLowerCase())) {
+                reject({ status: 'ERROR', message: 'Invalid payment method' });
+                return;
+            }
+
+            if (!updates.payment_type) {
+                reject({ status: 'ERROR', message: 'Payment type is required' });
+                return;
+            }
+
+            // Validate card last digits based on payment method
+            if (updates.payment_method.toLowerCase() === 'card') {
+                if (!updates.card_last_digits || !/^\d{4}$/.test(updates.card_last_digits)) {
+                    reject({ status: 'ERROR', message: 'Card payments require valid last 4 digits' });
+                    return;
+                }
+            } else {
+                // For cash payments, ensure no card digits are present
+                updates.card_last_digits = null;
+            }
+
+            const sql = `UPDATE transactions 
+                SET amount = ?, 
+                    payment_method = ?, 
+                    payment_type = ?, 
+                    card_last_digits = ?
+                WHERE id = ?`;
+
+            db.run(sql, [
+                updates.amount,
+                updates.payment_method.toLowerCase(),
+                updates.payment_type,
+                updates.card_last_digits,
+                id
+            ], function(err) {
+                if (err) {
+                    console.error('Error updating transaction:', err);
+                    reject({ status: 'ERROR', message: 'Failed to update transaction' });
+                    return;
+                }
+
+                if (this.changes === 0) {
+                    reject({ status: 'ERROR', message: 'Transaction not found' });
+                    return;
+                }
+
+                resolve({ 
+                    status: 'SUCCESS',
+                    message: 'Transaction updated successfully'
+                });
             });
         });
     }
@@ -307,6 +367,22 @@ app.post('/api/bulk-transactions', async (req, res) => {
         res.status(500).json({
             status: 'ERROR',
             message: 'Failed to process bulk transactions'
+        });
+    }
+});
+
+// Add PUT endpoint for updating transactions
+app.put('/api/transactions/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const updates = req.body;
+        
+        const result = await register.updateTransaction(id, updates);
+        res.json(result);
+    } catch (error) {
+        res.status(error.status === 'ERROR' ? 400 : 500).json({
+            status: 'ERROR',
+            message: error.message || 'Failed to update transaction'
         });
     }
 });
