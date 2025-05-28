@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cash Register - Payment Method</title>
     <style>
+        /* Hide the content by default until we verify login */
+        #main-content {
+            display: none;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -18,10 +22,33 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
         }
         .header {
             text-align: center;
             margin-bottom: 30px;
+            position: relative;
+        }
+        .logout-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
         }
         .payment-methods {
             display: grid;
@@ -66,6 +93,10 @@
     <div class="container">
         <div class="header">
             <h1>Select Payment Method</h1>
+            <button onclick="logout()" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
         </div>
         
         <div class="payment-methods">
@@ -93,10 +124,43 @@
     </div>
 
     <script>
+        // Only check login status on initial page load (not on navigation)
+        if (!localStorage.getItem('username') && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+        }
+
         function selectPaymentMethod(method) {
             localStorage.setItem('paymentMethod', method);
             window.location.href = '/transaction';
         }
+
+        function logout() {
+            // Clear user data from localStorage
+            localStorage.removeItem('username');
+            localStorage.removeItem('paymentMethod');
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+
+        // Add auth header to all API requests
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            const args = Array.prototype.slice.call(arguments);
+            const url = args[0];
+            
+            // Only add auth header for API calls
+            if (typeof url === 'string' && url.startsWith('/api/')) {
+                const username = localStorage.getItem('username');
+                if (username) {
+                    const options = args[1] || {};
+                    options.headers = options.headers || {};
+                    options.headers['x-user'] = username;
+                    args[1] = options;
+                }
+            }
+            
+            return originalFetch.apply(window, args);
+        };
     </script>
 </body>
 </html> 

@@ -46,6 +46,27 @@
         .back-button i {
             font-size: 1.2em;
         }
+        .logout-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
+        }
         .actions {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -92,6 +113,11 @@
             Back
         </button>
 
+        <button onclick="logout()" class="logout-button">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </button>
+
         <div class="header">
             <h1>Select Bulk Action</h1>
         </div>
@@ -109,5 +135,23 @@
             </a>
         </div>
     </div>
+
+    <script>
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+        });
+
+        function logout() {
+            // Clear user data from localStorage
+            localStorage.removeItem('username');
+            localStorage.removeItem('paymentMethod');
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+    </script>
 </body>
 </html> 

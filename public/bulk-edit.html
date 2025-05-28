@@ -47,6 +47,28 @@
             font-size: 16px;
             margin-right: 8px;
         }
+        .logout-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+            z-index: 10;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
+        }
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -270,6 +292,10 @@
                 <i class="fas fa-arrow-left"></i>
                 Back
             </a>
+            <button onclick="logout()" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
         </div>
         
         <div class="header">
@@ -753,6 +779,22 @@
                 console.error('Error saving changes:', error);
                 alert(`Failed to save changes: ${error.message}`);
             });
+        }
+
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+        });
+
+        function logout() {
+            // Clear user data from localStorage
+            localStorage.removeItem('username');
+            localStorage.removeItem('paymentMethod');
+            // Redirect to login page
+            window.location.href = '/login';
         }
     </script>
 </body>

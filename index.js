@@ -31,6 +31,41 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
         console.log('Transactions table ready');
     });
 
+    // Create users table if it doesn't exist
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating users table:', err);
+            return;
+        }
+        console.log('Users table ready');
+
+        // Create default admin user if it doesn't exist
+        const checkAdmin = `SELECT * FROM users WHERE username = 'admin'`;
+        db.get(checkAdmin, [], (err, row) => {
+            if (err) {
+                console.error('Error checking admin user:', err);
+                return;
+            }
+            if (!row) {
+                db.run(`INSERT INTO users (username, password) VALUES (?, ?)`,
+                    ['admin', 'admin123'],
+                    (err) => {
+                        if (err) {
+                            console.error('Error creating admin user:', err);
+                            return;
+                        }
+                        console.log('Default admin user created');
+                    }
+                );
+            }
+        });
+    });
+
     // Create separate invoice payments table
     db.run(`CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +87,75 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
 
 app.use(bodyParser.json());
 app.use(express.static('public'));
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+    // Skip auth for login page and API
+    if (req.path === '/login' || req.path === '/api/login') {
+        return next();
+    }
+
+    // Only check auth for API endpoints
+    if (req.path.startsWith('/api/')) {
+        const username = req.headers['x-user'];
+        if (!username) {
+            return res.status(401).json({ status: 'ERROR', message: 'Authentication required' });
+        }
+
+        // Verify user exists
+        db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+            if (err || !row) {
+                return res.status(401).json({ status: 'ERROR', message: 'Invalid user' });
+            }
+            next();
+        });
+    } else {
+        // Allow all non-API routes without auth
+        next();
+    }
+}
+
+// Apply authentication middleware
+app.use(requireAuth);
+
+// Login route
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Login API
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Username and password are required'
+        });
+    }
+
+    db.get('SELECT * FROM users WHERE username = ? AND password = ?', [username, password], (err, row) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Internal server error'
+            });
+        }
+
+        if (!row) {
+            return res.status(401).json({
+                status: 'ERROR',
+                message: 'Invalid username or password'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Login successful'
+        });
+    });
+});
 
 class CashRegister {
     constructor() {
@@ -385,6 +489,43 @@ app.put('/api/transactions/:id', async (req, res) => {
             message: error.message || 'Failed to update transaction'
         });
     }
+});
+
+// Add new user (protected route)
+app.post('/api/users', (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Username and password are required'
+        });
+    }
+
+    db.run('INSERT INTO users (username, password) VALUES (?, ?)',
+        [username, password],
+        function(err) {
+            if (err) {
+                if (err.message.includes('UNIQUE constraint failed')) {
+                    return res.status(400).json({
+                        status: 'ERROR',
+                        message: 'Username already exists'
+                    });
+                }
+                console.error('Database error:', err);
+                return res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to create user'
+                });
+            }
+
+            res.json({
+                status: 'SUCCESS',
+                message: 'User created successfully',
+                userId: this.lastID
+            });
+        }
+    );
 });
 
 // Gracefully close the database connection

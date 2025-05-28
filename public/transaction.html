@@ -41,6 +41,27 @@
         .back-button i {
             font-size: 1.2em;
         }
+        .logout-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
+        }
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -113,6 +134,11 @@
             Back
         </button>
         
+        <button onclick="logout()" class="logout-button">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </button>
+        
         <div class="header">
             <h1>Process Transaction</h1>
         </div>
@@ -172,6 +198,22 @@
     </div>
 
     <script>
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+        });
+
+        function logout() {
+            // Clear user data from localStorage
+            localStorage.removeItem('username');
+            localStorage.removeItem('paymentMethod');
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+
         const paymentMethod = localStorage.getItem('paymentMethod') || 'cash';
         const cardDetails = document.getElementById('cardDetails');
         const invoiceDetails = document.getElementById('invoiceDetails');
