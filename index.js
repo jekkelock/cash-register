@@ -178,7 +178,7 @@ app.post('/api/login', (req, res) => {
 
 class CashRegister {
     constructor() {
-        this.drawer = {
+        this.defaultDrawer = {
             CENT1: { value: 0.01, quantity: 100 },
             CENT2: { value: 0.02, quantity: 100 },
             CENT5: { value: 0.05, quantity: 100 },
@@ -191,19 +191,111 @@ class CashRegister {
             EURO10: { value: 10.00, quantity: 10 },
             EURO20: { value: 20.00, quantity: 5 },
             EURO50: { value: 50.00, quantity: 5 },
-            EURO100: { value: 100.00, quantity: 2 },
-            EURO200: { value: 200.00, quantity: 1 }
+            EURO100: { value: 100.00, quantity: 2 }
         };
+        this.initializeDrawer();
     }
 
-    getDrawerTotal() {
-        return Object.values(this.drawer).reduce((total, coin) => {
-            return total + (coin.value * coin.quantity);
-        }, 0).toFixed(2);
+    initializeDrawer() {
+        // Create table if it doesn't exist
+        db.run(`CREATE TABLE IF NOT EXISTS drawer_contents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            denomination TEXT NOT NULL,
+            value REAL NOT NULL,
+            quantity INTEGER NOT NULL,
+            UNIQUE(denomination)
+        )`, (err) => {
+            if (err) {
+                console.error('Error creating drawer_contents table:', err);
+                return;
+            }
+            console.log('Drawer contents table ready');
+
+            // Check if drawer is empty and initialize with default values if needed
+            db.get('SELECT COUNT(*) as count FROM drawer_contents', [], (err, row) => {
+                if (err) {
+                    console.error('Error checking drawer contents:', err);
+                    return;
+                }
+
+                if (row.count === 0) {
+                    // Insert default values
+                    console.log('Initializing drawer with default values...');
+                    const stmt = db.prepare('INSERT INTO drawer_contents (denomination, value, quantity) VALUES (?, ?, ?)');
+                    Object.entries(this.defaultDrawer).forEach(([denomination, data]) => {
+                        stmt.run(denomination, data.value, data.quantity);
+                    });
+                    stmt.finalize();
+                    console.log('Drawer initialized with default values');
+                } else {
+                    console.log('Drawer already contains data, skipping initialization');
+                }
+            });
+        });
     }
 
-    getDrawerContents() {
-        return this.drawer;
+    async getDrawerTotal() {
+        return new Promise((resolve, reject) => {
+            db.all('SELECT value, quantity FROM drawer_contents', [], (err, rows) => {
+                if (err) {
+                    console.error('Error getting drawer total:', err);
+                    reject(err);
+                    return;
+                }
+
+                const total = rows.reduce((sum, row) => {
+                    return sum + (row.value * row.quantity);
+                }, 0);
+
+                resolve(total.toFixed(2));
+            });
+        });
+    }
+
+    async getDrawerContents() {
+        return new Promise((resolve, reject) => {
+            db.all('SELECT denomination, value, quantity FROM drawer_contents', [], (err, rows) => {
+                if (err) {
+                    console.error('Error getting drawer contents:', err);
+                    reject(err);
+                    return;
+                }
+
+                const contents = {};
+                rows.forEach(row => {
+                    contents[row.denomination] = {
+                        value: row.value,
+                        quantity: row.quantity
+                    };
+                });
+
+                resolve(contents);
+            });
+        });
+    }
+
+    async updateDrawerContents(contents) {
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                const stmt = db.prepare('UPDATE drawer_contents SET quantity = ? WHERE denomination = ?');
+                
+                try {
+                    db.run('BEGIN TRANSACTION');
+                    
+                    Object.entries(contents).forEach(([denomination, data]) => {
+                        stmt.run(data.quantity, denomination);
+                    });
+                    
+                    db.run('COMMIT');
+                    stmt.finalize();
+                    resolve();
+                } catch (error) {
+                    db.run('ROLLBACK');
+                    console.error('Error updating drawer contents:', error);
+                    reject(error);
+                }
+            });
+        });
     }
 
     makeTransaction(amount, paymentMethod, paymentType, cardLastDigits = null, invoiceDetails = null) {
@@ -439,11 +531,56 @@ class CashRegister {
 const register = new CashRegister();
 
 // API Routes
-app.get('/api/drawer', (req, res) => {
-    res.json({
-        total: register.getDrawerTotal(),
-        contents: register.getDrawerContents()
-    });
+app.get('/api/drawer', async (req, res) => {
+    try {
+        const [total, contents] = await Promise.all([
+            register.getDrawerTotal(),
+            register.getDrawerContents()
+        ]);
+
+        res.json({
+            total,
+            contents
+        });
+    } catch (error) {
+        console.error('Error getting drawer data:', error);
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'Failed to get register contents'
+        });
+    }
+});
+
+app.put('/api/drawer', async (req, res) => {
+    const { contents } = req.body;
+    
+    if (!contents) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Contents are required'
+        });
+    }
+
+    try {
+        await register.updateDrawerContents(contents);
+        const [total, updatedContents] = await Promise.all([
+            register.getDrawerTotal(),
+            register.getDrawerContents()
+        ]);
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Register contents updated successfully',
+            total,
+            contents: updatedContents
+        });
+    } catch (error) {
+        console.error('Error updating drawer contents:', error);
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'Failed to update register contents'
+        });
+    }
 });
 
 app.post('/api/transaction', async (req, res) => {
@@ -720,6 +857,83 @@ app.put('/api/debts/:id', (req, res) => {
                 message: 'Debt record updated successfully'
             });
         });
+    });
+});
+
+// Add route for register page
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
+
+// Add route for station closure page
+app.get('/station-closure', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'station-closure.html'));
+});
+
+// Add API endpoint for station closure
+app.post('/api/station-closure', (req, res) => {
+    const { grandTotal, roomCharges, complementary, netAmount } = req.body;
+    const username = req.headers['x-user'] || 'system';
+
+    // Create a record of the station closure
+    const sql = `INSERT INTO transactions 
+        (amount, payment_method, payment_type, user) 
+        VALUES (?, 'station_closure', 'closure', ?)`;
+
+    db.run(sql, [grandTotal, username], function(err) {
+        if (err) {
+            console.error('Error saving station closure:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to save station closure'
+            });
+        }
+
+        const closureId = this.lastID;
+
+        // Create records for deductions
+        const deductionsPromises = [];
+        
+        if (roomCharges > 0) {
+            deductionsPromises.push(
+                new Promise((resolve, reject) => {
+                    db.run(
+                        `INSERT INTO transactions (amount, payment_method, payment_type, user) VALUES (?, 'room_charge', 'deduction', ?)`,
+                        [-roomCharges, username],
+                        (err) => err ? reject(err) : resolve()
+                    );
+                })
+            );
+        }
+
+        if (complementary > 0) {
+            deductionsPromises.push(
+                new Promise((resolve, reject) => {
+                    db.run(
+                        `INSERT INTO transactions (amount, payment_method, payment_type, user) VALUES (?, 'complementary', 'deduction', ?)`,
+                        [-complementary, username],
+                        (err) => err ? reject(err) : resolve()
+                    );
+                })
+            );
+        }
+
+        Promise.all(deductionsPromises)
+            .then(() => {
+                res.json({
+                    status: 'SUCCESS',
+                    message: 'Station closure processed successfully',
+                    closureId,
+                    netAmount
+                });
+            })
+            .catch(error => {
+                console.error('Error saving deductions:', error);
+                res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to save deductions'
+                });
+            });
     });
 });
 

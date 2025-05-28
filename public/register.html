@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register - Register Contents</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-section {
+            position: relative;
+            height: 40px;
+            margin-bottom: 20px;
+        }
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 16px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .back-button:hover {
+            color: #0056b3;
+        }
+        .back-button i {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        .logout-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .register-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .denomination-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .denomination-group h3 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .denomination-input {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 5px;
+            background: white;
+            border-radius: 4px;
+        }
+        .denomination-input label {
+            flex: 1;
+            color: #495057;
+        }
+        .denomination-input input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .denomination-input .unit {
+            margin-left: 8px;
+            color: #6c757d;
+            font-size: 0.9em;
+            min-width: 30px;
+            display: inline-block;
+        }
+        
+        /* Hide spinner arrows for number inputs */
+        .denomination-input input::-webkit-outer-spin-button,
+        .denomination-input input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        /* Firefox */
+        .denomination-input input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .total-section {
+            grid-column: 1 / -1;
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .total-section p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        .total-amount {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .save-button {
+            grid-column: 1 / -1;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+        .save-button:hover {
+            background-color: #218838;
+        }
+        .save-button i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-section">
+            <a href="/" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <button onclick="logout()" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+
+        <div class="header">
+            <h1>Register Contents</h1>
+        </div>
+
+        <form id="register-form" class="register-form">
+            <div class="denomination-group">
+                <h3>Bills (by quantity)</h3>
+                <div class="denomination-input">
+                    <label>€100</label>
+                    <input type="number" id="EURO100" min="0" value="0">
+                    <span class="unit">bills</span>
+                </div>
+                <div class="denomination-input">
+                    <label>€50</label>
+                    <input type="number" id="EURO50" min="0" value="0">
+                    <span class="unit">bills</span>
+                </div>
+                <div class="denomination-input">
+                    <label>€20</label>
+                    <input type="number" id="EURO20" min="0" value="0">
+                    <span class="unit">bills</span>
+                </div>
+                <div class="denomination-input">
+                    <label>€10</label>
+                    <input type="number" id="EURO10" min="0" value="0">
+                    <span class="unit">bills</span>
+                </div>
+                <div class="denomination-input">
+                    <label>€5</label>
+                    <input type="number" id="EURO5" min="0" value="0">
+                    <span class="unit">bills</span>
+                </div>
+                <div class="subtotal">Bills Total: <span id="bills-total">€0.00</span></div>
+            </div>
+
+            <div class="denomination-group">
+                <h3>Coins (by amount)</h3>
+                <div class="denomination-input">
+                    <label>€2</label>
+                    <input type="number" id="EURO2" min="0" step="2" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>€1</label>
+                    <input type="number" id="EURO1" min="0" step="1" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>50¢</label>
+                    <input type="number" id="CENT50" min="0" step="0.5" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>20¢</label>
+                    <input type="number" id="CENT20" min="0" step="0.2" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>10¢</label>
+                    <input type="number" id="CENT10" min="0" step="0.1" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>5¢</label>
+                    <input type="number" id="CENT5" min="0" step="0.05" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>2¢</label>
+                    <input type="number" id="CENT2" min="0" step="0.02" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="denomination-input">
+                    <label>1¢</label>
+                    <input type="number" id="CENT1" min="0" step="0.01" value="0">
+                    <span class="unit">€</span>
+                </div>
+                <div class="subtotal">Coins Total: <span id="coins-total">€0.00</span></div>
+            </div>
+
+            <div class="total-section">
+                <p>Total in Register: <span class="total-amount" id="total-amount">€0.00</span></p>
+            </div>
+
+            <button type="submit" class="save-button">
+                <i class="fas fa-save"></i>
+                Save Register Contents
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+            loadRegisterContents();
+        });
+
+        function logout() {
+            localStorage.removeItem('username');
+            window.location.href = '/login';
+        }
+
+        function getAuthHeaders() {
+            const username = localStorage.getItem('username');
+            return {
+                'Content-Type': 'application/json',
+                'x-user': username
+            };
+        }
+
+        // Load current register contents
+        function loadRegisterContents() {
+            fetch('/api/drawer', {
+                headers: getAuthHeaders()
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load register contents');
+                return response.json();
+            })
+            .then(data => {
+                // Handle bills (by quantity)
+                ['EURO100', 'EURO50', 'EURO20', 'EURO10', 'EURO5'].forEach(key => {
+                    const input = document.getElementById(key);
+                    if (input && data.contents[key]) {
+                        input.value = data.contents[key].quantity;
+                    }
+                });
+
+                // Handle coins (by amount)
+                const coinValues = {
+                    EURO2: 2, EURO1: 1, CENT50: 0.5, CENT20: 0.2,
+                    CENT10: 0.1, CENT5: 0.05, CENT2: 0.02, CENT1: 0.01
+                };
+
+                Object.entries(coinValues).forEach(([key, value]) => {
+                    const input = document.getElementById(key);
+                    if (input && data.contents[key]) {
+                        input.value = (data.contents[key].quantity * value).toFixed(2);
+                    }
+                });
+
+                updateTotal();
+            })
+            .catch(error => {
+                console.error('Error loading register contents:', error);
+                alert('Failed to load register contents');
+            });
+        }
+
+        // Update total amount
+        function updateTotal() {
+            // Calculate bills total (quantity * value)
+            const billValues = {
+                EURO100: 100, EURO50: 50, EURO20: 20, EURO10: 10, EURO5: 5
+            };
+            
+            let billsTotal = 0;
+            Object.entries(billValues).forEach(([id, value]) => {
+                const input = document.getElementById(id);
+                if (input) {
+                    billsTotal += value * parseInt(input.value || 0);
+                }
+            });
+            document.getElementById('bills-total').textContent = `€${billsTotal.toFixed(2)}`;
+
+            // Calculate coins total (direct amounts)
+            let coinsTotal = 0;
+            ['EURO2', 'EURO1', 'CENT50', 'CENT20', 'CENT10', 'CENT5', 'CENT2', 'CENT1'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    coinsTotal += parseFloat(input.value || 0);
+                }
+            });
+            document.getElementById('coins-total').textContent = `€${coinsTotal.toFixed(2)}`;
+
+            // Update total
+            const total = billsTotal + coinsTotal;
+            document.getElementById('total-amount').textContent = `€${total.toFixed(2)}`;
+        }
+
+        // Add Excel-like behavior to all inputs
+        document.querySelectorAll('.denomination-input input').forEach(input => {
+            // Select all text when input receives focus
+            input.addEventListener('focus', function(e) {
+                e.target.select();
+            });
+            
+            // Update total when input changes
+            input.addEventListener('input', updateTotal);
+            
+            // Prevent partial selection on mouseup (keeps full selection when clicking)
+            input.addEventListener('mouseup', function(e) {
+                if (e.target === document.activeElement) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // Handle form submission
+        document.getElementById('register-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const contents = {};
+            
+            // Handle bills (by quantity)
+            const billValues = {
+                EURO100: 100, EURO50: 50, EURO20: 20, EURO10: 10, EURO5: 5
+            };
+            
+            Object.keys(billValues).forEach(key => {
+                const input = document.getElementById(key);
+                if (input) {
+                    contents[key] = {
+                        quantity: parseInt(input.value || 0)
+                    };
+                }
+            });
+
+            // Handle coins (convert amounts to quantities)
+            const coinValues = {
+                EURO2: 2, EURO1: 1, CENT50: 0.5, CENT20: 0.2,
+                CENT10: 0.1, CENT5: 0.05, CENT2: 0.02, CENT1: 0.01
+            };
+
+            Object.entries(coinValues).forEach(([key, value]) => {
+                const input = document.getElementById(key);
+                if (input) {
+                    const amount = parseFloat(input.value || 0);
+                    contents[key] = {
+                        quantity: Math.round(amount / value)
+                    };
+                }
+            });
+
+            fetch('/api/drawer', {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ contents })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to update register contents');
+                return response.json();
+            })
+            .then(result => {
+                alert('Register contents updated successfully');
+            })
+            .catch(error => {
+                console.error('Error updating register contents:', error);
+                alert('Failed to update register contents');
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cash Register - Payment Method</title>
+    <title>Cash Register - Main Menu</title>
     <style>
         /* Hide the content by default until we verify login */
         #main-content {
@@ -50,13 +50,13 @@
         .logout-button i {
             font-size: 1.2em;
         }
-        .payment-methods {
+        .menu-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        .payment-method {
+        .menu-item {
             background: #f8f9fa;
             padding: 30px;
             border-radius: 10px;
@@ -66,23 +66,27 @@
             border: 2px solid transparent;
             text-decoration: none;
             color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
-        .payment-method:hover {
+        .menu-item:hover {
             transform: translateY(-5px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border-color: #007bff;
         }
-        .payment-method i {
+        .menu-item i {
             font-size: 2em;
-            margin-bottom: 10px;
             color: #007bff;
         }
-        .payment-method h3 {
-            margin: 0;
+        .menu-item span {
+            font-size: 1.1em;
             color: #333;
+            font-weight: 500;
         }
-        .payment-method p {
-            margin: 10px 0 0;
+        .menu-item p {
+            margin: 5px 0 0;
             color: #666;
             font-size: 0.9em;
         }
@@ -92,39 +96,49 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Select Payment Method</h1>
+            <h1>Cash Register</h1>
             <button onclick="logout()" class="logout-button">
                 <i class="fas fa-sign-out-alt"></i>
                 Logout
             </button>
         </div>
         
-        <div class="payment-methods">
-            <div class="payment-method" onclick="selectPaymentMethod('cash')">
+        <div class="menu-grid">
+            <a href="/transaction" class="menu-item" onclick="selectPaymentMethod('cash')">
                 <i class="fas fa-euro-sign"></i>
-                <h3>Cash</h3>
-                <p>Process cash payment</p>
-            </div>
-            <div class="payment-method" onclick="selectPaymentMethod('card')">
+                <span>Cash Payment</span>
+                <p>Process cash transactions</p>
+            </a>
+            <a href="/transaction" class="menu-item" onclick="selectPaymentMethod('card')">
                 <i class="fas fa-credit-card"></i>
-                <h3>Card</h3>
-                <p>Process card payment</p>
-            </div>
-            <div class="payment-method" onclick="selectPaymentMethod('invoice')">
+                <span>Card Payment</span>
+                <p>Process card transactions</p>
+            </a>
+            <a href="/transaction" class="menu-item" onclick="selectPaymentMethod('invoice')">
                 <i class="fas fa-file-invoice-dollar"></i>
-                <h3>Invoice</h3>
-                <p>Pay an invoice</p>
-            </div>
-            <div class="payment-method" onclick="window.location.href='/bulk-actions'">
-                <i class="fas fa-tasks"></i>
-                <h3>Bulk Actions</h3>
+                <span>Invoice</span>
+                <p>Process invoice payments</p>
+            </a>
+            <a href="/bulk-actions" class="menu-item">
+                <i class="fas fa-list"></i>
+                <span>Bulk Actions</span>
                 <p>Manage multiple transactions</p>
-            </div>
-            <div class="payment-method" onclick="window.location.href='/debts'">
+            </a>
+            <a href="/debts" class="menu-item">
                 <i class="fas fa-hand-holding-usd"></i>
-                <h3>Debt</h3>
-                <p>Track borrowed money and returns</p>
-            </div>
+                <span>Debts</span>
+                <p>Track borrowed money</p>
+            </a>
+            <a href="/register" class="menu-item">
+                <i class="fas fa-coins"></i>
+                <span>Register</span>
+                <p>Manage cash drawer</p>
+            </a>
+            <a href="/station-closure" class="menu-item">
+                <i class="fas fa-cash-register"></i>
+                <span>Station Closure</span>
+                <p>Close and transfer register contents</p>
+            </a>
         </div>
     </div>
 
@@ -136,7 +150,6 @@
 
         function selectPaymentMethod(method) {
             localStorage.setItem('paymentMethod', method);
-            window.location.href = '/transaction';
         }
 
         function logout() {

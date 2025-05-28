@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register - Station Closure</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-section {
+            position: relative;
+            height: 40px;
+            margin-bottom: 20px;
+        }
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 16px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .back-button:hover {
+            color: #0056b3;
+        }
+        .back-button i {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        .logout-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .logout-button:hover {
+            color: #dc3545;
+        }
+        .logout-button i {
+            font-size: 1.2em;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .closure-form {
+            display: grid;
+            gap: 20px;
+        }
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        .input-group label {
+            flex: 1;
+            color: #495057;
+        }
+        .input-group input {
+            width: 120px;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .input-group input::-webkit-outer-spin-button,
+        .input-group input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .input-group input[type=number] {
+            -moz-appearance: textfield;
+        }
+        .total-section {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        .total-amount {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .submit-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .submit-button:hover {
+            background-color: #218838;
+        }
+        .submit-button i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-section">
+            <a href="/" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <button onclick="logout()" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+
+        <div class="header">
+            <h1>Station Closure</h1>
+        </div>
+
+        <form id="closure-form" class="closure-form">
+            <div class="section">
+                <h3>Grand Total</h3>
+                <div class="input-group">
+                    <label>Total Amount</label>
+                    <input type="number" id="grand-total" step="0.01" value="0" required>
+                    <span class="unit">€</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Deductions</h3>
+                <div class="input-group">
+                    <label>Room Charges</label>
+                    <input type="number" id="room-charges" step="0.01" value="0" required>
+                    <span class="unit">€</span>
+                </div>
+                <div class="input-group">
+                    <label>Maison (Complementary)</label>
+                    <input type="number" id="complementary" step="0.01" value="0" required>
+                    <span class="unit">€</span>
+                </div>
+            </div>
+
+            <div class="total-section">
+                <div class="total-row">
+                    <span>Grand Total:</span>
+                    <span id="display-grand-total">€0.00</span>
+                </div>
+                <div class="total-row">
+                    <span>Room Charges:</span>
+                    <span id="display-room-charges">-€0.00</span>
+                </div>
+                <div class="total-row">
+                    <span>Maison:</span>
+                    <span id="display-complementary">-€0.00</span>
+                </div>
+                <hr>
+                <div class="total-row">
+                    <span>Net Amount:</span>
+                    <span class="total-amount" id="net-amount">€0.00</span>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-button">
+                <i class="fas fa-save"></i>
+                Process Station Closure
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('username');
+            window.location.href = '/login';
+        }
+
+        function getAuthHeaders() {
+            const username = localStorage.getItem('username');
+            return {
+                'Content-Type': 'application/json',
+                'x-user': username
+            };
+        }
+
+        // Add Excel-like behavior to all inputs
+        document.querySelectorAll('input[type="number"]').forEach(input => {
+            // Select all text when input receives focus
+            input.addEventListener('focus', function(e) {
+                e.target.select();
+            });
+            
+            // Prevent partial selection on mouseup
+            input.addEventListener('mouseup', function(e) {
+                if (e.target === document.activeElement) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        // Update totals when any input changes
+        function updateTotals() {
+            const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
+            const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
+            const complementary = parseFloat(document.getElementById('complementary').value || 0);
+            
+            document.getElementById('display-grand-total').textContent = `€${grandTotal.toFixed(2)}`;
+            document.getElementById('display-room-charges').textContent = `-€${roomCharges.toFixed(2)}`;
+            document.getElementById('display-complementary').textContent = `-€${complementary.toFixed(2)}`;
+            
+            const netAmount = grandTotal - roomCharges - complementary;
+            document.getElementById('net-amount').textContent = `€${netAmount.toFixed(2)}`;
+        }
+
+        // Add event listeners for input changes
+        document.getElementById('grand-total').addEventListener('input', updateTotals);
+        document.getElementById('room-charges').addEventListener('input', updateTotals);
+        document.getElementById('complementary').addEventListener('input', updateTotals);
+
+        // Handle form submission
+        document.getElementById('closure-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
+            const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
+            const complementary = parseFloat(document.getElementById('complementary').value || 0);
+            const netAmount = grandTotal - roomCharges - complementary;
+
+            try {
+                const response = await fetch('/api/station-closure', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        grandTotal,
+                        roomCharges,
+                        complementary,
+                        netAmount
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to process station closure');
+                }
+
+                const result = await response.json();
+                if (result.status === 'SUCCESS') {
+                    alert('Station closure processed successfully');
+                    window.location.href = '/transaction?amount=' + netAmount;
+                } else {
+                    alert(result.message || 'Failed to process station closure');
+                }
+            } catch (error) {
+                console.error('Error processing station closure:', error);
+                alert('Failed to process station closure');
+            }
+        });
+    </script>
+</body>
+</html> 
