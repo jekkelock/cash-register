@@ -1314,6 +1314,130 @@ app.post('/api/station-closure', async (req, res) => {
     }
 });
 
+// Add route for register closure page
+app.get('/register-closure', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register-closure.html'));
+});
+
+// Get current fiscal period
+app.get('/api/fiscal-period/current', (req, res) => {
+    db.get(`SELECT * FROM fiscal_periods WHERE status = 'ACTIVE'`, [], (err, row) => {
+        if (err) {
+            console.error('Error fetching current fiscal period:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to fetch fiscal period'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            fiscalPeriod: row
+        });
+    });
+});
+
+// Process register closure
+app.post('/api/register-closure', async (req, res) => {
+    const username = req.headers['x-user'] || 'system';
+
+    // Create a promise-based version of db.run
+    const dbRun = (sql, params) => new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) reject(err);
+            else resolve(this);
+        });
+    });
+
+    try {
+        // Start transaction
+        await dbRun('BEGIN TRANSACTION');
+
+        // Get current fiscal period
+        const currentPeriod = await new Promise((resolve, reject) => {
+            db.get(`SELECT * FROM fiscal_periods WHERE status = 'ACTIVE'`, [], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+
+        if (!currentPeriod) {
+            throw new Error('No active fiscal period found');
+        }
+
+        // Close current period
+        await dbRun(
+            `UPDATE fiscal_periods 
+             SET status = 'CLOSED', 
+                 closed_at = datetime('now') 
+             WHERE id = ?`,
+            [currentPeriod.id]
+        );
+
+        // Create new period
+        await dbRun(
+            `INSERT INTO fiscal_periods (
+                current_date, 
+                closure_number, 
+                status
+            ) VALUES (
+                date('now', '+1 day'),
+                ?,
+                'ACTIVE'
+            )`,
+            [currentPeriod.closure_number + 1]
+        );
+
+        // Commit transaction
+        await dbRun('COMMIT');
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Register closed successfully',
+            previousPeriod: currentPeriod
+        });
+
+    } catch (error) {
+        console.error('Error processing register closure:', error);
+        try {
+            await dbRun('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+
+        res.status(500).json({
+            status: 'ERROR',
+            message: error.message || 'Failed to process register closure'
+        });
+    }
+});
+
+// Get fiscal period history
+app.get('/api/fiscal-periods', (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    
+    db.all(
+        `SELECT * FROM fiscal_periods 
+         ORDER BY id DESC 
+         LIMIT ?`,
+        [limit],
+        (err, rows) => {
+            if (err) {
+                console.error('Error fetching fiscal periods:', err);
+                return res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to fetch fiscal periods'
+                });
+            }
+
+            res.json({
+                status: 'SUCCESS',
+                fiscalPeriods: rows
+            });
+        }
+    );
+});
+
 // Gracefully close the database connection
 process.on('SIGINT', () => {
     db.close((err) => {
