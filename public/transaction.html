@@ -164,6 +164,10 @@
                     <option value="TRANSFER">TRANSFER</option>
                     <option value="OTHER">Other</option>
                 </select>
+                <div id="customPaymentTypeGroup" class="form-group" style="display: none; margin-top: 10px;">
+                    <label for="customPaymentType">Custom Payment Type</label>
+                    <input type="text" id="customPaymentType" placeholder="Enter custom payment type">
+                </div>
                 <div id="paymentTypeError" class="form-error"></div>
             </div>
 
@@ -262,8 +266,18 @@
             clearErrors();
 
             const amount = document.getElementById('amount').value;
-            const paymentType = paymentMethod === 'invoice' ? 'INVOICE' : document.getElementById('paymentType').value;
+            let paymentType = paymentMethod === 'invoice' ? 'INVOICE' : document.getElementById('paymentType').value;
             
+            // Handle custom payment type
+            if (paymentType === 'OTHER') {
+                const customType = document.getElementById('customPaymentType').value.trim();
+                if (!customType) {
+                    showFieldError('paymentType', 'Please enter a custom payment type');
+                    return;
+                }
+                paymentType = customType;
+            }
+
             if (!amount || parseFloat(amount) <= 0) {
                 showFieldError('amount', 'Please enter a valid amount');
                 return;
@@ -335,6 +349,17 @@
             } catch (error) {
                 showError('Error processing transaction');
                 console.error('Error:', error);
+            }
+        });
+
+        // Add event listener for payment type change
+        document.getElementById('paymentType').addEventListener('change', function() {
+            const customPaymentTypeGroup = document.getElementById('customPaymentTypeGroup');
+            if (this.value === 'OTHER') {
+                customPaymentTypeGroup.style.display = 'block';
+                document.getElementById('customPaymentType').focus();
+            } else {
+                customPaymentTypeGroup.style.display = 'none';
             }
         });
     </script>

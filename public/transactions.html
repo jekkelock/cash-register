@@ -215,9 +215,21 @@
             .then(response => response.json())
             .then(transactions => {
                 if (document.getElementById('paymentType').value === 'other') {
-                    // Filter out transactions that have any of our defined payment types
-                    const definedTypes = ['Tax', 'Accommodation', 'Extras', 'Day Use', 'Transfer', 'Charging Station'];
-                    transactions = transactions.filter(t => !definedTypes.includes(t.payment_type));
+                    // Define our known payment types (match the ones from transaction.html)
+                    const definedTypes = [
+                        'TAX',
+                        'ACCOM',
+                        'EXTRAS',
+                        'DAY USE',
+                        'CHARGING STATION',
+                        'TRANSFER'
+                    ];
+                    
+                    // Filter transactions to show only those with payment types not in our defined list
+                    transactions = transactions.filter(transaction => {
+                        const transactionType = transaction.payment_type ? transaction.payment_type.toUpperCase() : '';
+                        return !definedTypes.some(type => type === transactionType);
+                    });
                 }
                 displayTransactions(transactions);
             })
