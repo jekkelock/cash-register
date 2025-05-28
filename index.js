@@ -718,15 +718,6 @@ class CashRegister {
 
     getTransactions(filters = {}) {
         return new Promise((resolve, reject) => {
-            // First get all transactions to inspect them
-            db.all('SELECT * FROM transactions', [], (err, allRows) => {
-                if (err) {
-                    console.error('Error getting all transactions:', err);
-                } else {
-                    console.log('All transactions in DB:', allRows);
-                }
-            });
-
             let sql = `SELECT * FROM transactions WHERE 1=1`;
             const params = [];
 
@@ -755,8 +746,13 @@ class CashRegister {
 
             // Handle payment type filter
             if (filters.paymentType) {
-                sql += ` AND payment_type = ?`;
+                sql += ` AND LOWER(payment_type) = LOWER(?)`;
                 params.push(filters.paymentType);
+                console.log('Filtering by payment type:', {
+                    requestedType: filters.paymentType,
+                    sqlQuery: sql,
+                    params: params
+                });
             }
 
             // Handle search filter (search across multiple columns)
@@ -1656,6 +1652,21 @@ app.post('/api/station-closure', async (req, res) => {
 // Add route for register closure page
 app.get('/register-closure', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'register-closure.html'));
+});
+
+// Add route for view options page
+app.get('/view', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'view.html'));
+});
+
+// Add route for logs page
+app.get('/logs', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'logs.html'));
+});
+
+// Add route for transactions page
+app.get('/transactions', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'transactions.html'));
 });
 
 // Get current fiscal period
