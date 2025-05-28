@@ -83,6 +83,25 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
         }
         console.log('Invoices table ready');
     });
+
+    // Create debts table
+    db.run(`CREATE TABLE IF NOT EXISTS debts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        person_name TEXT NOT NULL,
+        amount_taken DECIMAL(10,2) NOT NULL,
+        amount_returned DECIMAL(10,2) DEFAULT 0,
+        invoice_amount DECIMAL(10,2) DEFAULT 0,
+        description TEXT,
+        status TEXT DEFAULT 'PENDING',
+        user TEXT DEFAULT 'system'
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating debts table:', err);
+            return;
+        }
+        console.log('Debts table ready');
+    });
 });
 
 app.use(bodyParser.json());
@@ -268,15 +287,73 @@ class CashRegister {
         });
     }
 
-    getTransactions(limit = 50) {
+    getTransactions(filters = {}) {
         return new Promise((resolve, reject) => {
-            const sql = `SELECT * FROM transactions ORDER BY timestamp DESC LIMIT ?`;
-            db.all(sql, [limit], (err, rows) => {
+            // First get all transactions to inspect them
+            db.all('SELECT * FROM transactions', [], (err, allRows) => {
+                if (err) {
+                    console.error('Error getting all transactions:', err);
+                } else {
+                    console.log('All transactions in DB:', allRows);
+                }
+            });
+
+            let sql = `SELECT * FROM transactions WHERE 1=1`;
+            const params = [];
+
+            // Debug logging
+            console.log('Received filters:', filters);
+
+            // Handle date range filter
+            if (filters.dateRange) {
+                const [startDate, endDate] = filters.dateRange.split(' to ');
+                if (startDate && endDate) {
+                    sql += ` AND date(timestamp) BETWEEN ? AND ?`;
+                    params.push(startDate, endDate);
+                }
+            }
+
+            // Handle payment method filter with detailed logging
+            if (filters.paymentMethod) {
+                sql += ` AND LOWER(payment_method) = LOWER(?)`;
+                params.push(filters.paymentMethod);
+                console.log('Filtering by payment method:', {
+                    requestedMethod: filters.paymentMethod,
+                    sqlQuery: sql,
+                    params: params
+                });
+            }
+
+            // Handle payment type filter
+            if (filters.paymentType) {
+                sql += ` AND payment_type = ?`;
+                params.push(filters.paymentType);
+            }
+
+            // Handle search filter (search across multiple columns)
+            if (filters.search) {
+                const searchTerm = `%${filters.search}%`;
+                sql += ` AND (payment_type LIKE ? OR card_last_digits LIKE ? OR CAST(amount AS TEXT) LIKE ?)`;
+                params.push(searchTerm, searchTerm, searchTerm);
+            }
+
+            sql += ` ORDER BY timestamp DESC`;
+
+            // Debug logging
+            console.log('Final SQL:', sql);
+            console.log('Final params:', params);
+
+            db.all(sql, params, (err, rows) => {
                 if (err) {
                     console.error('Error fetching transactions:', err);
                     reject(err);
                     return;
                 }
+                // Debug logging
+                console.log('Query results:', {
+                    rowCount: rows.length,
+                    rows: rows
+                });
                 resolve(rows);
             });
         });
@@ -390,7 +467,13 @@ app.post('/api/transaction', async (req, res) => {
 
 app.get('/api/transactions', async (req, res) => {
     try {
-        const transactions = await register.getTransactions();
+        const filters = {
+            dateRange: req.query.dateRange,
+            paymentMethod: req.query.paymentMethod,
+            paymentType: req.query.paymentType,
+            search: req.query.search
+        };
+        const transactions = await register.getTransactions(filters);
         res.json(transactions);
     } catch (error) {
         res.status(500).json({
@@ -431,6 +514,10 @@ app.get('/bulk-transactions', (req, res) => {
 
 app.get('/bulk-edit', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'bulk-edit.html'));
+});
+
+app.get('/debts', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'debts.html'));
 });
 
 // Add endpoint for bulk transactions
@@ -526,6 +613,114 @@ app.post('/api/users', (req, res) => {
             });
         }
     );
+});
+
+// Add new API endpoints for debts
+app.post('/api/debts', (req, res) => {
+    const { person_name, amount_taken, description } = req.body;
+    
+    if (!person_name || !amount_taken || amount_taken <= 0) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Person name and valid amount are required'
+        });
+    }
+
+    const sql = `INSERT INTO debts (person_name, amount_taken, description, user) VALUES (?, ?, ?, ?)`;
+    const username = req.headers['x-user'] || 'system';
+
+    db.run(sql, [person_name, amount_taken, description, username], function(err) {
+        if (err) {
+            console.error('Error creating debt record:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to create debt record'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Debt record created successfully',
+            debtId: this.lastID
+        });
+    });
+});
+
+app.get('/api/debts', (req, res) => {
+    const sql = `SELECT * FROM debts ORDER BY 
+                 CASE status 
+                    WHEN 'PENDING' THEN 1 
+                    WHEN 'PARTIALLY_RETURNED' THEN 2
+                    ELSE 3 
+                 END,
+                 timestamp DESC`;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching debts:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to fetch debts'
+            });
+        }
+
+        res.json(rows);
+    });
+});
+
+app.put('/api/debts/:id', (req, res) => {
+    const { amount_returned, invoice_amount } = req.body;
+    const debtId = req.params.id;
+
+    if (!debtId || (amount_returned === undefined && invoice_amount === undefined)) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Invalid update data'
+        });
+    }
+
+    // First get the current debt record
+    db.get('SELECT * FROM debts WHERE id = ?', [debtId], (err, debt) => {
+        if (err || !debt) {
+            return res.status(404).json({
+                status: 'ERROR',
+                message: 'Debt record not found'
+            });
+        }
+
+        const new_amount_returned = amount_returned !== undefined ? amount_returned : debt.amount_returned;
+        const new_invoice_amount = invoice_amount !== undefined ? invoice_amount : debt.invoice_amount;
+        const total_returned = new_amount_returned + new_invoice_amount;
+
+        // Determine the new status
+        let status = 'PENDING';
+        if (total_returned >= debt.amount_taken) {
+            status = 'COMPLETED';
+        } else if (total_returned > 0) {
+            status = 'PARTIALLY_RETURNED';
+        }
+
+        const sql = `UPDATE debts 
+                    SET amount_returned = ?,
+                        invoice_amount = ?,
+                        status = ?
+                    WHERE id = ?`;
+
+        db.run(sql, [new_amount_returned, new_invoice_amount, status, debtId], function(err) {
+            if (err) {
+                console.error('Error updating debt record:', err);
+                return res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to update debt record'
+                });
+            }
+
+            res.json({
+                status: 'SUCCESS',
+                message: 'Debt record updated successfully'
+            });
+        });
+    });
 });
 
 // Gracefully close the database connection

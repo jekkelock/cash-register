@@ -313,7 +313,8 @@
                 const response = await fetch('/api/transaction', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'x-user': localStorage.getItem('username')
                     },
                     body: JSON.stringify(requestData)
                 });

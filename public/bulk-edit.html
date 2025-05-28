@@ -568,38 +568,100 @@
             });
         }
 
+        // Check if user is logged in
+        window.addEventListener('load', () => {
+            const username = localStorage.getItem('username');
+            if (!username) {
+                window.location.href = '/login';
+            }
+        });
+
+        function logout() {
+            // Clear user data from localStorage
+            localStorage.removeItem('username');
+            localStorage.removeItem('paymentMethod');
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+
+        // Helper function to get auth headers
+        function getAuthHeaders() {
+            const username = localStorage.getItem('username');
+            return {
+                'Content-Type': 'application/json',
+                'x-user': username
+            };
+        }
+
         function loadTransactions() {
             const dateRange = document.getElementById('date-range').value;
             const paymentMethod = document.getElementById('payment-method').value;
             const paymentType = document.getElementById('payment-type').value;
             const search = document.getElementById('search').value;
 
+            // Debug logging
+            console.log('Raw filter values:', {
+                dateRange,
+                paymentMethod,
+                paymentType,
+                search
+            });
+
             const params = new URLSearchParams();
             if (dateRange) params.append('dateRange', dateRange);
-            if (paymentMethod) params.append('paymentMethod', paymentMethod);
+            if (paymentMethod) {
+                // Ensure consistent casing for payment method
+                const normalizedPaymentMethod = paymentMethod.toLowerCase();
+                params.append('paymentMethod', normalizedPaymentMethod);
+                console.log('Normalized payment method:', normalizedPaymentMethod);
+            }
             if (paymentType) params.append('paymentType', paymentType);
             if (search) params.append('search', search);
 
-            fetch(`/api/transactions?${params.toString()}`)
-                .then(response => response.json())
-                .then(transactions => {
-                    if (transactions.length === 0) {
+            const url = `/api/transactions?${params.toString()}`;
+            console.log('Making request to:', url);
+
+            fetch(url, {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+
+                    if (!Array.isArray(data)) {
+                        console.error('Expected array of transactions, got:', data);
+                        throw new Error('Invalid data format received');
+                    }
+
+                    if (data.length === 0) {
+                        console.log('No transactions found');
                         initializeTable([]);
                         updateListView([]);
                         return;
                     }
 
-                    const formattedTransactions = transactions.map(t => ({
+                    const formattedTransactions = data.map(t => ({
                         ...t,
-                        timestamp: new Date(t.timestamp).toLocaleString()
+                        timestamp: new Date(t.timestamp).toLocaleString(),
+                        payment_method: t.payment_method ? t.payment_method.toLowerCase() : ''
                     }));
 
+                    console.log('Formatted transactions:', formattedTransactions);
                     initializeTable(formattedTransactions);
                     updateListView(formattedTransactions);
                 })
                 .catch(error => {
                     console.error('Error loading transactions:', error);
-                    alert('Failed to load transactions');
+                    if (error.message.includes('401')) {
+                        window.location.href = '/login';
+                    } else {
+                        alert('Failed to load transactions. Please try refreshing the page.');
+                    }
                 });
         }
 
@@ -644,7 +706,6 @@
                 payment_type: document.getElementById('edit-payment-type').value
             };
 
-            // Handle card last digits based on payment method
             if (paymentMethod === 'card') {
                 const cardLastDigits = document.getElementById('edit-card-last-digits').value;
                 if (!cardLastDigits || !/^\d{4}$/.test(cardLastDigits)) {
@@ -656,12 +717,15 @@
 
             fetch(`/api/transactions/${transactionId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(updatedTransaction)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(result => {
                 if (result.status === 'SUCCESS') {
                     closeModal();
@@ -672,7 +736,11 @@
             })
             .catch(error => {
                 console.error('Error updating transaction:', error);
-                alert('Failed to update transaction');
+                if (error.message.includes('401')) {
+                    window.location.href = '/login';
+                } else {
+                    alert('Failed to update transaction');
+                }
             });
         });
 
@@ -684,7 +752,14 @@
             flatpickr("#date-range", {
                 mode: "range",
                 dateFormat: "Y-m-d",
-                defaultDate: [new Date(), new Date()]
+                defaultDate: [new Date(), new Date()],
+                onChange: function(selectedDates, dateStr) {
+                    if (selectedDates.length === 2) {
+                        const startDate = selectedDates[0].toISOString().split('T')[0];
+                        const endDate = selectedDates[1].toISOString().split('T')[0];
+                        document.getElementById('date-range').value = `${startDate} to ${endDate}`;
+                    }
+                }
             });
 
             loadTransactions();
@@ -708,18 +783,13 @@
                 const original = originalData[index];
                 const current = hot.getSourceDataAtRow(index);
                 
-                // Add debug logging
-                console.log('Row', index, 'Original:', original, 'Current:', current);
-                
                 if (JSON.stringify(original) !== JSON.stringify(current)) {
-                    // Validate amount and ensure it's a number
                     const amount = parseFloat(current.amount);
                     if (isNaN(amount) || amount <= 0) {
                         alert(`Invalid amount in row ${index + 1}`);
                         return;
                     }
 
-                    // Ensure all required fields are present
                     if (!current.payment_method || !current.payment_type) {
                         alert(`Missing required fields in row ${index + 1}`);
                         return;
@@ -741,60 +811,36 @@
                 return;
             }
 
-            console.log('Changes to be saved:', changes);
-
-            // Save changes sequentially with better error handling
             Promise.all(changes.map(change => 
                 fetch(`/api/transactions/${change.id}`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(change.updates)
                 })
-                .then(async response => {
+                .then(response => {
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
-                .catch(error => {
-                    console.error(`Error updating transaction ${change.id}:`, error);
-                    throw error;
-                })
             ))
             .then(results => {
-                console.log('Save results:', results);
                 const failures = results.filter(r => r.status !== 'SUCCESS');
                 if (failures.length > 0) {
-                    console.error('Failed updates:', failures);
-                    alert(`Failed to save ${failures.length} changes. Please check the console for details.`);
+                    alert(`Failed to update ${failures.length} transaction(s)`);
                 } else {
                     alert('All changes saved successfully');
-                    loadTransactions(); // Refresh the data
+                    loadTransactions();
                 }
             })
             .catch(error => {
                 console.error('Error saving changes:', error);
-                alert(`Failed to save changes: ${error.message}`);
+                if (error.message.includes('401')) {
+                    window.location.href = '/login';
+                } else {
+                    alert('Failed to save changes');
+                }
             });
-        }
-
-        // Check if user is logged in
-        window.addEventListener('load', () => {
-            const username = localStorage.getItem('username');
-            if (!username) {
-                window.location.href = '/login';
-            }
-        });
-
-        function logout() {
-            // Clear user data from localStorage
-            localStorage.removeItem('username');
-            localStorage.removeItem('paymentMethod');
-            // Redirect to login page
-            window.location.href = '/login';
         }
     </script>
 </body>
