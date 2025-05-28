@@ -257,6 +257,52 @@ app.get('/transaction', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'transaction.html'));
 });
 
+app.get('/bulk-transactions', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'bulk-transactions.html'));
+});
+
+// Add endpoint for bulk transactions
+app.post('/api/bulk-transactions', async (req, res) => {
+    try {
+        const transactions = req.body;
+        const results = [];
+        let hasError = false;
+
+        for (const transaction of transactions) {
+            try {
+                const result = await register.makeTransaction(
+                    transaction.amount,
+                    transaction.paymentMethod,
+                    transaction.paymentType,
+                    transaction.cardLastDigits || null
+                );
+                results.push({
+                    status: 'SUCCESS',
+                    message: result.message,
+                    row: transaction.row
+                });
+            } catch (error) {
+                hasError = true;
+                results.push({
+                    status: 'ERROR',
+                    message: error.message || 'Failed to process transaction',
+                    row: transaction.row
+                });
+            }
+        }
+
+        res.json({
+            status: hasError ? 'PARTIAL' : 'SUCCESS',
+            results: results
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'Failed to process bulk transactions'
+        });
+    }
+});
+
 // Gracefully close the database connection
 process.on('SIGINT', () => {
     db.close((err) => {

@@ -57,6 +57,23 @@
             color: #666;
             font-size: 0.9em;
         }
+        .bulk-button {
+            display: block;
+            width: 200px;
+            margin: 0 auto;
+            padding: 10px 20px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+        .bulk-button:hover {
+            background-color: #5a6268;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -83,6 +100,10 @@
                 <p>Pay an invoice</p>
             </div>
         </div>
+
+        <a href="/bulk-transactions" class="bulk-button">
+            <i class="fas fa-table"></i> Bulk Transactions
+        </a>
     </div>
 
     <script>

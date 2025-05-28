@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register - Edit Transactions</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .back-button:hover {
+            color: #0056b3;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-group label {
+            margin-bottom: 5px;
+            color: #495057;
+            font-size: 0.9em;
+        }
+        .filter-group input,
+        .filter-group select {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .search-box {
+            position: relative;
+        }
+        .search-box input {
+            padding-left: 30px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .search-box i {
+            position: absolute;
+            left: 10px;
+            top: 33px;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .apply-filters {
+            grid-column: 1 / -1;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+        .apply-filters:hover {
+            background-color: #0056b3;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+        }
+        .transactions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .transactions-table th,
+        .transactions-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .transactions-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        .transactions-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        .edit-button {
+            background: none;
+            border: none;
+            color: #007bff;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .edit-button:hover {
+            color: #0056b3;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .close-modal {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #6c757d;
+        }
+        .modal-form {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .modal-form label {
+            font-weight: 500;
+        }
+        .modal-form input,
+        .modal-form select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .save-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        .save-button:hover {
+            background-color: #0056b3;
+        }
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button onclick="window.location.href='/bulk-actions'" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Back
+        </button>
+
+        <div class="header">
+            <h1>Edit Transactions</h1>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="date-range">Date Range</label>
+                <input type="text" id="date-range" placeholder="Select date range">
+            </div>
+            <div class="filter-group">
+                <label for="payment-method">Payment Method</label>
+                <select id="payment-method">
+                    <option value="">All</option>
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                </select>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="show-invoices">
+                    <label for="show-invoices">Show Invoices</label>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label for="payment-type">Payment Type</label>
+                <select id="payment-type">
+                    <option value="">All</option>
+                    <option value="TAX">TAX</option>
+                    <option value="ACCOM">ACCOM</option>
+                    <option value="EXTRAS">EXTRAS</option>
+                    <option value="DAY USE">DAY USE</option>
+                    <option value="CHARGING STATION">CHARGING STATION</option>
+                    <option value="TRANSFER">TRANSFER</option>
+                    <option value="OTHER">OTHER</option>
+                </select>
+            </div>
+            <div class="filter-group search-box">
+                <label for="search">Search</label>
+                <i class="fas fa-search"></i>
+                <input type="text" id="search" placeholder="Search transactions...">
+            </div>
+            <button class="apply-filters" onclick="loadTransactions()">
+                <i class="fas fa-filter"></i> Apply Filters
+            </button>
+        </div>
+
+        <table class="transactions-table">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Amount (€)</th>
+                    <th>Payment Method</th>
+                    <th>Payment Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="transactions-body">
+                <!-- Transactions will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2>Edit Transaction</h2>
+            <form id="edit-form" class="modal-form">
+                <input type="hidden" id="edit-id">
+                <div>
+                    <label for="edit-amount">Amount (€)</label>
+                    <input type="number" id="edit-amount" step="0.01" required>
+                </div>
+                <div>
+                    <label for="edit-payment-method">Payment Method</label>
+                    <select id="edit-payment-method" required>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="invoice">Invoice</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-payment-type">Payment Type</label>
+                    <select id="edit-payment-type" required>
+                        <option value="TAX">TAX</option>
+                        <option value="ACCOM">ACCOM</option>
+                        <option value="EXTRAS">EXTRAS</option>
+                        <option value="DAY USE">DAY USE</option>
+                        <option value="CHARGING STATION">CHARGING STATION</option>
+                        <option value="TRANSFER">TRANSFER</option>
+                        <option value="OTHER">OTHER</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-status">Status</label>
+                    <select id="edit-status" required>
+                        <option value="SUCCESS">Success</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="FAILED">Failed</option>
+                    </select>
+                </div>
+                <button type="submit" class="save-button">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        // Initialize date picker
+        flatpickr("#date-range", {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            defaultDate: [new Date(), new Date()],
+            onChange: function(selectedDates) {
+                // Remove automatic loading on date change
+            }
+        });
+
+        // Load transactions when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set show-invoices to unchecked by default
+            document.getElementById('show-invoices').checked = false;
+            loadTransactions();
+        });
+        
+        // Remove automatic loading on filter changes
+        document.getElementById('search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadTransactions();
+            }
+        });
+
+        function loadTransactions() {
+            const dateRange = document.getElementById('date-range').value;
+            const paymentMethod = document.getElementById('payment-method').value;
+            const paymentType = document.getElementById('payment-type').value;
+            const search = document.getElementById('search').value;
+            const showInvoices = document.getElementById('show-invoices').checked;
+
+            // Construct the query parameters
+            const params = new URLSearchParams();
+            if (dateRange) params.append('dateRange', dateRange);
+            if (paymentMethod) params.append('paymentMethod', paymentMethod);
+            if (paymentType) params.append('paymentType', paymentType);
+            if (search) params.append('search', search);
+            params.append('showInvoices', showInvoices);
+
+            // Fetch transactions and invoices based on filters
+            Promise.all([
+                fetch(`/api/transactions?${params.toString()}`).then(res => res.json()),
+                showInvoices ? fetch(`/api/invoices?${params.toString()}`).then(res => res.json()) : Promise.resolve([])
+            ])
+            .then(([transactions, invoices]) => {
+                const tbody = document.getElementById('transactions-body');
+                tbody.innerHTML = '';
+
+                // Combine and sort transactions and invoices by timestamp
+                const allTransactions = [
+                    ...transactions,
+                    ...invoices.map(invoice => ({
+                        ...invoice,
+                        payment_method: 'invoice',
+                        payment_type: 'INVOICE',
+                        recipient_name: invoice.recipient_name
+                    }))
+                ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                if (allTransactions.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="no-results">No transactions found</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                allTransactions.forEach(transaction => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${new Date(transaction.timestamp).toLocaleString()}</td>
+                        <td>${transaction.amount.toFixed(2)}</td>
+                        <td>${transaction.payment_method}${transaction.recipient_name ? ` (${transaction.recipient_name})` : ''}</td>
+                        <td>${transaction.payment_type}</td>
+                        <td>${transaction.status}</td>
+                        <td>
+                            <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => console.error('Error loading transactions:', error));
+        }
+
+        function openEditModal(transaction) {
+            document.getElementById('edit-modal').style.display = 'block';
+            document.getElementById('edit-id').value = transaction.id;
+            document.getElementById('edit-amount').value = transaction.amount;
+            document.getElementById('edit-payment-method').value = transaction.payment_method;
+            document.getElementById('edit-payment-type').value = transaction.payment_type;
+            document.getElementById('edit-status').value = transaction.status;
+        }
+
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        document.getElementById('edit-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const transactionId = document.getElementById('edit-id').value;
+            const updatedTransaction = {
+                amount: parseFloat(document.getElementById('edit-amount').value),
+                payment_method: document.getElementById('edit-payment-method').value,
+                payment_type: document.getElementById('edit-payment-type').value,
+                status: document.getElementById('edit-status').value
+            };
+
+            fetch(`/api/transactions/${transactionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updatedTransaction)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'SUCCESS') {
+                    closeModal();
+                    loadTransactions();
+                } else {
+                    alert('Failed to update transaction: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating transaction:', error);
+                alert('Failed to update transaction');
+            });
+        });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('edit-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html> 

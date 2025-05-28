@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register - Bulk Transactions</title>
+    <link href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .back-button:hover {
+            color: #0056b3;
+        }
+        .back-button i {
+            font-size: 1.2em;
+        }
+        #hot-container {
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+        }
+        .handsontable {
+            font-size: 14px;
+            background-color: white;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .action-button {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .submit-button {
+            background-color: #28a745;
+            color: white;
+        }
+        .submit-button:hover {
+            background-color: #218838;
+        }
+        .clear-button {
+            background-color: #dc3545;
+            color: white;
+        }
+        .clear-button:hover {
+            background-color: #c82333;
+        }
+        .success-message, .error-message {
+            display: none;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .success-message {
+            color: #28a745;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        .error-message {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <button onclick="window.location.href='/'" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Back
+        </button>
+
+        <div class="header">
+            <h1>Bulk Transactions</h1>
+        </div>
+
+        <div id="successMessage" class="success-message"></div>
+        <div id="errorMessage" class="error-message"></div>
+
+        <div id="hot-container"></div>
+
+        <div class="button-container">
+            <button onclick="submitTransactions()" class="action-button submit-button">
+                <i class="fas fa-save"></i> Submit All
+            </button>
+            <button onclick="clearGrid()" class="action-button clear-button">
+                <i class="fas fa-trash"></i> Clear All
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <script>
+        const container = document.getElementById('hot-container');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Initialize the grid
+        const hot = new Handsontable(container, {
+            data: [
+                ['', 'cash', 'TAX', ''], // Example row
+            ],
+            colHeaders: ['Amount (€)', 'Payment Method', 'Payment Type', 'Card Last 4 Digits'],
+            columns: [
+                { type: 'numeric', numericFormat: { pattern: '0,0.00' } },
+                {
+                    type: 'dropdown',
+                    source: ['cash', 'card']
+                },
+                {
+                    type: 'dropdown',
+                    source: ['TAX', 'ACCOM', 'EXTRAS', 'DAY USE', 'CHARGING STATION', 'TRANSFER', 'OTHER']
+                },
+                { type: 'text' }
+            ],
+            minSpareRows: 1,
+            contextMenu: true,
+            stretchH: 'all',
+            width: '100%',
+            height: 400,
+            autoWrapRow: true,
+            rowHeaders: true,
+            licenseKey: 'non-commercial-and-evaluation'
+        });
+
+        // Ensure the table is rendered properly
+        window.addEventListener('load', () => {
+            hot.render();
+        });
+
+        // Adjust table size when window is resized
+        window.addEventListener('resize', () => {
+            hot.render();
+        });
+
+        function showMessage(message, isError = false) {
+            const messageElement = isError ? errorMessage : successMessage;
+            messageElement.textContent = message;
+            messageElement.style.display = 'block';
+            setTimeout(() => {
+                messageElement.style.display = 'none';
+            }, 5000);
+        }
+
+        function validateRow(row, index) {
+            const [amount, paymentMethod, paymentType, cardLastDigits] = row;
+
+            if (!amount || isNaN(amount) || amount <= 0) {
+                throw new Error(`Row ${index + 1}: Invalid amount`);
+            }
+
+            if (!paymentMethod || !['cash', 'card'].includes(paymentMethod.toLowerCase())) {
+                throw new Error(`Row ${index + 1}: Invalid payment method`);
+            }
+
+            if (!paymentType) {
+                throw new Error(`Row ${index + 1}: Payment type is required`);
+            }
+
+            if (paymentMethod.toLowerCase() === 'card') {
+                if (!cardLastDigits || !/^\d{4}$/.test(cardLastDigits)) {
+                    throw new Error(`Row ${index + 1}: Card payments require last 4 digits`);
+                }
+            }
+
+            return {
+                amount: parseFloat(amount),
+                paymentMethod: paymentMethod.toLowerCase(),
+                paymentType,
+                cardLastDigits,
+                row: index + 1
+            };
+        }
+
+        async function submitTransactions() {
+            try {
+                const data = hot.getData().filter(row => row.some(cell => cell !== null && cell !== ''));
+                const transactions = [];
+
+                // Validate all rows first
+                for (let i = 0; i < data.length; i++) {
+                    transactions.push(validateRow(data[i], i));
+                }
+
+                const response = await fetch('/api/bulk-transactions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(transactions)
+                });
+
+                const result = await response.json();
+                
+                if (result.status === 'SUCCESS') {
+                    showMessage('All transactions processed successfully!');
+                    clearGrid();
+                } else if (result.status === 'PARTIAL') {
+                    const errorRows = result.results
+                        .filter(r => r.status === 'ERROR')
+                        .map(r => `Row ${r.row}: ${r.message}`)
+                        .join('\n');
+                    showMessage(`Some transactions failed:\n${errorRows}`, true);
+                } else {
+                    showMessage('Failed to process transactions', true);
+                }
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        }
+
+        function clearGrid() {
+            hot.clear();
+            hot.updateSettings({
+                data: [
+                    ['', 'cash', 'TAX', ''], // Example row
+                ]
+            });
+        }
+    </script>
+</body>
+</html> 
