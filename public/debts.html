@@ -324,8 +324,8 @@
                         <input type="number" id="invoiceAmount" step="0.01" value="0" onchange="updateReturnSummary()">
                     </div>
                     <div class="form-group">
-                        <label for="recipientName">Recipient Name</label>
-                        <input type="text" id="recipientName">
+                        <label for="recipientName">Company Name</label>
+                        <input type="text" id="recipientName" placeholder="Enter the company that issued the invoice">
                     </div>
                     <div class="form-group">
                         <label for="vatNumber">VAT Number (Optional)</label>
@@ -549,6 +549,7 @@
             const debtId = document.getElementById('returnDebtId').value;
             const cashAmount = parseFloat(document.getElementById('amountReturned').value) || 0;
             const invoiceAmount = parseFloat(document.getElementById('invoiceAmount').value) || 0;
+            const companyName = document.getElementById('recipientName').value;
 
             // Validate amounts
             if (cashAmount === 0 && invoiceAmount === 0) {
@@ -561,62 +562,30 @@
                 return;
             }
 
+            // Validate company name if invoice amount is provided
+            if (invoiceAmount > 0 && !companyName.trim()) {
+                alert('Please enter the company name that issued the invoice');
+                return;
+            }
+
             try {
-                // If there's a cash amount, create the cash transaction first
-                if (cashAmount > 0) {
-                    const cashTransaction = {
-                        amount: cashAmount,
-                        paymentMethod: 'cash',
-                        paymentType: 'debt_return'
-                    };
-
-                    const cashResponse = await fetch('/api/transaction', {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify(cashTransaction)
-                    });
-
-                    if (!cashResponse.ok) {
-                        throw new Error(`HTTP error! status: ${cashResponse.status}`);
-                    }
-                }
-
-                // If there's an invoice amount, create the invoice
-                if (invoiceAmount > 0) {
-                    const invoiceData = {
-                        amount: invoiceAmount,
-                        paymentMethod: 'invoice',
-                        paymentType: 'debt_return',
-                        invoiceDetails: {
-                            dateIssued: document.getElementById('dateIssued').value,
-                            recipientName: document.getElementById('recipientName').value,
-                            vatNumber: document.getElementById('vatNumber').value || null
-                        }
-                    };
-
-                    const invoiceResponse = await fetch('/api/transaction', {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify(invoiceData)
-                    });
-
-                    if (!invoiceResponse.ok) {
-                        throw new Error(`HTTP error! status: ${invoiceResponse.status}`);
-                    }
-                }
-
                 // Update debt record with both amounts
                 const response = await fetch(`/api/debts/${debtId}`, {
                     method: 'PUT',
-                    headers: getAuthHeaders(),
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
                         amount_returned: cashAmount,
-                        invoice_amount: invoiceAmount
+                        invoice_amount: invoiceAmount,
+                        invoice_company: companyName ? companyName.trim() : ''
                     })
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
 
                 const result = await response.json();

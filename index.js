@@ -14,6 +14,26 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     }
     console.log('Connected to SQLite database');
 
+    // Create system_logs table for tracking all actions
+    db.run(`CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        user TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        details TEXT,
+        ip_address TEXT,
+        old_values TEXT,
+        new_values TEXT
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating system_logs table:', err);
+            return;
+        }
+        console.log('System logs table ready');
+    });
+
     // Create fiscal_periods table first as it's fundamental to the system
     db.run(`CREATE TABLE IF NOT EXISTS fiscal_periods (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -504,84 +524,173 @@ class CashRegister {
         });
     }
 
-    makeTransaction(amount, paymentMethod, paymentType, cardLastDigits = null, invoiceDetails = null) {
-        return new Promise((resolve, reject) => {
-            if (paymentMethod === 'card') {
-                if (!cardLastDigits || cardLastDigits.length !== 4) {
-                    resolve({ 
-                        status: 'ERROR', 
-                        message: 'Invalid card details. Please provide last 4 digits.' 
-                    });
-                    return;
-                }
-            }
+    async makeTransaction(amount, paymentMethod, paymentType, cardLastDigits = null, invoiceDetails = null, req = null) {
+        return new Promise(async (resolve, reject) => {
+            const username = req?.headers?.['x-user'] || 'system';
 
-            if (paymentMethod === 'invoice') {
-                if (!invoiceDetails || !invoiceDetails.recipientName || !invoiceDetails.dateIssued) {
-                    resolve({
-                        status: 'ERROR',
-                        message: 'Invalid invoice details. Please provide recipient name and date issued.'
+            try {
+                // Start transaction
+                await new Promise((res, rej) => {
+                    db.run('BEGIN TRANSACTION', err => {
+                        if (err) rej(err);
+                        else res();
                     });
-                    return;
+                });
+
+                if (paymentMethod === 'card') {
+                    if (!cardLastDigits || cardLastDigits.length !== 4) {
+                        resolve({ 
+                            status: 'ERROR', 
+                            message: 'Invalid card details. Please provide last 4 digits.' 
+                        });
+                        return;
+                    }
                 }
 
-                const sql = `INSERT INTO invoices 
-                    (amount, date_issued, recipient_name, vat_number, status, user, fiscal_date) 
-                    VALUES (?, ?, ?, ?, ?, ?, date('now'))`;
-                
-                db.run(sql, [
-                    amount,
-                    invoiceDetails.dateIssued,
-                    invoiceDetails.recipientName,
-                    invoiceDetails.vatNumber || null,
-                    'SUCCESS',
-                    'system' // Will be replaced with actual user once login is implemented
-                ], function(err) {
-                    if (err) {
-                        console.error('Error saving invoice:', err);
-                        reject({ 
+                if (paymentMethod === 'invoice') {
+                    if (!invoiceDetails || !invoiceDetails.recipientName || !invoiceDetails.dateIssued) {
+                        resolve({
                             status: 'ERROR',
-                            message: 'Failed to save invoice'
+                            message: 'Invalid invoice details. Please provide recipient name and date issued.'
                         });
                         return;
                     }
 
+                    const sql = `INSERT INTO invoices 
+                        (amount, date_issued, recipient_name, vat_number, status, user, fiscal_date) 
+                        VALUES (?, ?, ?, ?, ?, ?, date('now'))`;
+                    
+                    const result = await new Promise((res, rej) => {
+                        db.run(sql, [
+                            amount,
+                            invoiceDetails.dateIssued,
+                            invoiceDetails.recipientName,
+                            invoiceDetails.vatNumber || null,
+                            'SUCCESS',
+                            username
+                        ], function(err) {
+                            if (err) rej(err);
+                            else res(this);
+                        });
+                    });
+
+                    // Log the invoice creation
+                    await logAction(
+                        username,
+                        'CREATE',
+                        'INVOICE',
+                        result.lastID,
+                        `Created invoice for ${invoiceDetails.recipientName} (${amount}€)`,
+                        req || { ip: 'system' },
+                        null,
+                        {
+                            amount,
+                            recipient: invoiceDetails.recipientName,
+                            date_issued: invoiceDetails.dateIssued,
+                            vat_number: invoiceDetails.vatNumber,
+                            timestamp: new Date().toISOString()
+                        }
+                    );
+
+                    await new Promise((res, rej) => {
+                        db.run('COMMIT', err => {
+                            if (err) rej(err);
+                            else res();
+                        });
+                    });
+
                     resolve({ 
                         status: 'SUCCESS',
                         message: `Invoice payment processed successfully: €${amount} to ${invoiceDetails.recipientName}`,
-                        transactionId: this.lastID
-                    });
-                });
-                return;
-            }
-
-            // Handle cash and card payments
-            const sql = `INSERT INTO transactions 
-                (amount, payment_method, payment_type, card_last_digits, user, fiscal_date) 
-                VALUES (?, ?, ?, ?, ?, date('now'))`;
-            
-            db.run(sql, [
-                amount,
-                paymentMethod,
-                paymentType,
-                cardLastDigits,
-                'system' // Will be replaced with actual user once login is implemented
-            ], function(err) {
-                if (err) {
-                    console.error('Error saving transaction:', err);
-                    reject({ 
-                        status: 'ERROR',
-                        message: 'Failed to save transaction'
+                        transactionId: result.lastID
                     });
                     return;
                 }
 
+                // Handle cash and card payments
+                const sql = `INSERT INTO transactions 
+                    (amount, payment_method, payment_type, card_last_digits, user, fiscal_date) 
+                    VALUES (?, ?, ?, ?, ?, date('now'))`;
+                
+                const result = await new Promise((res, rej) => {
+                    db.run(sql, [
+                        amount,
+                        paymentMethod,
+                        paymentType,
+                        cardLastDigits,
+                        username
+                    ], function(err) {
+                        if (err) rej(err);
+                        else res(this);
+                    });
+                });
+
+                // Log the transaction
+                await logAction(
+                    username,
+                    'CREATE',
+                    'TRANSACTION',
+                    result.lastID,
+                    `Created ${paymentMethod} transaction for ${amount}€`,
+                    req || { ip: 'system' },
+                    null,
+                    {
+                        amount,
+                        payment_method: paymentMethod,
+                        payment_type: paymentType,
+                        card_last_digits: cardLastDigits,
+                        timestamp: new Date().toISOString()
+                    }
+                );
+
+                await new Promise((res, rej) => {
+                    db.run('COMMIT', err => {
+                        if (err) rej(err);
+                        else res();
+                    });
+                });
+
                 resolve({ 
                     status: 'SUCCESS',
                     message: `Transaction processed successfully: €${amount} via ${paymentMethod}`,
-                    transactionId: this.lastID
+                    transactionId: result.lastID
                 });
-            });
+            } catch (error) {
+                console.error('Error in transaction:', error);
+                
+                try {
+                    await new Promise((res, rej) => {
+                        db.run('ROLLBACK', err => {
+                            if (err) rej(err);
+                            else res();
+                        });
+                    });
+                } catch (rollbackError) {
+                    console.error('Error rolling back transaction:', rollbackError);
+                }
+
+                // Log the error
+                await logAction(
+                    username,
+                    'ERROR',
+                    'TRANSACTION',
+                    null,
+                    `Failed to create ${paymentMethod} transaction: ${error.message}`,
+                    req || { ip: 'system' },
+                    {
+                        amount,
+                        payment_method: paymentMethod,
+                        payment_type: paymentType,
+                        card_last_digits: cardLastDigits
+                    },
+                    null
+                );
+
+                reject({ 
+                    status: 'ERROR',
+                    message: 'Failed to process transaction'
+                });
+            }
         });
     }
 
@@ -792,13 +901,17 @@ app.put('/api/drawer', async (req, res) => {
 app.post('/api/transaction', async (req, res) => {
     try {
         const { amount, paymentMethod, paymentType, cardLastDigits, invoiceDetails } = req.body;
+        const username = req.headers['x-user'] || 'system';
+
         const result = await register.makeTransaction(
             amount, 
             paymentMethod, 
             paymentType, 
             cardLastDigits,
-            invoiceDetails
+            invoiceDetails,
+            req
         );
+
         res.json(result);
     } catch (error) {
         res.status(500).json({
@@ -959,8 +1072,92 @@ app.post('/api/users', (req, res) => {
 });
 
 // Add new API endpoints for debts
-app.post('/api/debts', (req, res) => {
+// Create a function to handle debt operations
+async function createDebt(person_name, amount_taken, description, username, req) {
+    const sql = `INSERT INTO debts (person_name, amount_taken, description, user, fiscal_date) 
+                 VALUES (?, ?, ?, ?, date('now'))`;
+
+    try {
+        // Start transaction
+        await new Promise((resolve, reject) => {
+            db.run('BEGIN TRANSACTION', err => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        // Insert debt record
+        const result = await new Promise((resolve, reject) => {
+            db.run(sql, [person_name, amount_taken, description, username], function(err) {
+                if (err) reject(err);
+                else resolve(this);
+            });
+        });
+
+        // Log the debt creation
+        await logAction(
+            username,
+            'CREATE',
+            'DEBT',
+            result.lastID,
+            `Created debt record for ${person_name} (${amount_taken}€)`,
+            req,
+            null,
+            {
+                person_name,
+                amount_taken,
+                description,
+                timestamp: new Date().toISOString()
+            }
+        );
+
+        // Commit transaction
+        await new Promise((resolve, reject) => {
+            db.run('COMMIT', err => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        return {
+            status: 'SUCCESS',
+            message: 'Debt record created successfully',
+            debtId: result.lastID
+        };
+    } catch (error) {
+        console.error('Error creating debt record:', error);
+
+        // Rollback transaction
+        try {
+            await new Promise((resolve, reject) => {
+                db.run('ROLLBACK', err => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+
+        // Log the error
+        await logAction(
+            username,
+            'ERROR',
+            'DEBT',
+            null,
+            `Failed to create debt record for ${person_name}: ${error.message}`,
+            req,
+            { person_name, amount_taken, description },
+            null
+        );
+
+        throw error;
+    }
+}
+
+app.post('/api/debts', async (req, res) => {
     const { person_name, amount_taken, description } = req.body;
+    const username = req.headers['x-user'] || 'system';
     
     if (!person_name || !amount_taken || amount_taken <= 0) {
         return res.status(400).json({
@@ -969,25 +1166,15 @@ app.post('/api/debts', (req, res) => {
         });
     }
 
-    const sql = `INSERT INTO debts (person_name, amount_taken, description, user, fiscal_date) 
-                 VALUES (?, ?, ?, ?, date('now'))`;
-    const username = req.headers['x-user'] || 'system';
-
-    db.run(sql, [person_name, amount_taken, description, username], function(err) {
-        if (err) {
-            console.error('Error creating debt record:', err);
-            return res.status(500).json({
-                status: 'ERROR',
-                message: 'Failed to create debt record'
-            });
-        }
-
-        res.json({
-            status: 'SUCCESS',
-            message: 'Debt record created successfully',
-            debtId: this.lastID
+    try {
+        const result = await createDebt(person_name, amount_taken, description, username, req);
+        res.json(result);
+    } catch (error) {
+        return res.status(500).json({
+            status: 'ERROR',
+            message: 'Failed to create debt record'
         });
-    });
+    }
 });
 
 app.get('/api/debts', (req, res) => {
@@ -1012,9 +1199,10 @@ app.get('/api/debts', (req, res) => {
     });
 });
 
-app.put('/api/debts/:id', (req, res) => {
-    const { amount_returned, invoice_amount } = req.body;
+app.put('/api/debts/:id', async (req, res) => {
+    const { amount_returned, invoice_amount, invoice_company } = req.body;
     const debtId = req.params.id;
+    const username = req.headers['x-user'] || 'system';
 
     if (!debtId || (amount_returned === undefined && invoice_amount === undefined)) {
         return res.status(400).json({
@@ -1023,14 +1211,30 @@ app.put('/api/debts/:id', (req, res) => {
         });
     }
 
-    // First get the current debt record
-    db.get('SELECT * FROM debts WHERE id = ?', [debtId], (err, debt) => {
-        if (err || !debt) {
-            return res.status(404).json({
-                status: 'ERROR',
-                message: 'Debt record not found'
+    if (invoice_amount > 0 && !invoice_company) {
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Company name is required when using invoice amount'
+        });
+    }
+
+    try {
+        // Start transaction
+        await new Promise((resolve, reject) => {
+            db.run('BEGIN TRANSACTION', err => {
+                if (err) reject(err);
+                else resolve();
             });
-        }
+        });
+
+        // First get the current debt record
+        const debt = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM debts WHERE id = ?', [debtId], (err, row) => {
+                if (err) reject(err);
+                else if (!row) reject(new Error('Debt record not found'));
+                else resolve(row);
+            });
+        });
 
         const new_amount_returned = amount_returned !== undefined ? amount_returned : debt.amount_returned;
         const new_invoice_amount = invoice_amount !== undefined ? invoice_amount : debt.invoice_amount;
@@ -1044,27 +1248,98 @@ app.put('/api/debts/:id', (req, res) => {
             status = 'PARTIALLY_RETURNED';
         }
 
-        const sql = `UPDATE debts 
-                    SET amount_returned = ?,
-                        invoice_amount = ?,
-                        status = ?
-                    WHERE id = ?`;
+        // Update the debt record
+        await new Promise((resolve, reject) => {
+            const sql = `UPDATE debts 
+                        SET amount_returned = ?,
+                            invoice_amount = ?,
+                            status = ?
+                        WHERE id = ?`;
 
-        db.run(sql, [new_amount_returned, new_invoice_amount, status, debtId], function(err) {
-            if (err) {
-                console.error('Error updating debt record:', err);
-                return res.status(500).json({
-                    status: 'ERROR',
-                    message: 'Failed to update debt record'
-                });
-            }
-
-            res.json({
-                status: 'SUCCESS',
-                message: 'Debt record updated successfully'
+            db.run(sql, [new_amount_returned, new_invoice_amount, status, debtId], function(err) {
+                if (err) reject(err);
+                else resolve(this);
             });
         });
-    });
+
+        // If there's an invoice amount, create an invoice record
+        if (invoice_amount > 0) {
+            const invoiceSql = `INSERT INTO invoices 
+                (amount, date_issued, recipient_name, status, user, fiscal_date) 
+                VALUES (?, date('now'), ?, 'SUCCESS', ?, date('now'))`;
+            
+            await new Promise((resolve, reject) => {
+                db.run(invoiceSql, [invoice_amount, invoice_company, username], function(err) {
+                    if (err) reject(err);
+                    else resolve(this);
+                });
+            });
+        }
+
+        // Log the debt update
+        await logAction(
+            username,
+            'UPDATE',
+            'DEBT',
+            debtId,
+            `Updated debt record for ${debt.person_name}`,
+            req,
+            {
+                amount_returned: debt.amount_returned,
+                invoice_amount: debt.invoice_amount,
+                status: debt.status
+            },
+            {
+                amount_returned: new_amount_returned,
+                invoice_amount: new_invoice_amount,
+                invoice_company: invoice_company,
+                status: status,
+                timestamp: new Date().toISOString()
+            }
+        );
+
+        await new Promise((resolve, reject) => {
+            db.run('COMMIT', err => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Debt record updated successfully'
+        });
+    } catch (error) {
+        console.error('Error updating debt record:', error);
+
+        try {
+            await new Promise((resolve, reject) => {
+                db.run('ROLLBACK', err => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+
+        // Log the error
+        await logAction(
+            username,
+            'ERROR',
+            'DEBT',
+            debtId,
+            `Failed to update debt record: ${error.message}`,
+            req,
+            req.body,
+            null
+        );
+
+        return res.status(error.message === 'Debt record not found' ? 404 : 500).json({
+            status: 'ERROR',
+            message: error.message || 'Failed to update debt record'
+        });
+    }
 });
 
 // Add route for register page
@@ -1261,14 +1536,52 @@ app.post('/api/station-closure', async (req, res) => {
         const closureId = closureResult.lastID;
         console.log('Station closure record created with ID:', closureId);
 
+        // Log the station closure creation
+        await logAction(
+            username,
+            'CREATE',
+            'STATION_CLOSURE',
+            closureId,
+            `Created station closure for ${stationDisplay}`,
+            req,
+            null,
+            {
+                station,
+                grandTotal,
+                roomCharges,
+                complementary,
+                cardAmount,
+                cashAmount,
+                timestamp: new Date().toISOString()
+            }
+        );
+
         // Only create a transaction for card payments
         if (cardAmount > 0) {
             console.log('Adding card transaction');
-            await dbRun(
+            const transactionResult = await dbRun(
                 `INSERT INTO transactions (
                     amount, payment_method, payment_type, user, description, fiscal_date
                 ) VALUES (?, ?, ?, ?, ?, date('now'))`,
                 [cardAmount, 'card', stationDisplay, username, `${stationDisplay} closure - card payments (ID: ${closureId})`]
+            );
+
+            // Log the card transaction creation
+            await logAction(
+                username,
+                'CREATE',
+                'TRANSACTION',
+                transactionResult.lastID,
+                `Created card transaction for ${stationDisplay} closure`,
+                req,
+                null,
+                {
+                    amount: cardAmount,
+                    payment_method: 'card',
+                    payment_type: stationDisplay,
+                    closure_id: closureId,
+                    timestamp: new Date().toISOString()
+                }
             );
         }
 
@@ -1287,6 +1600,25 @@ app.post('/api/station-closure', async (req, res) => {
         try {
             await dbRun('ROLLBACK');
             console.log('Transaction rolled back successfully');
+
+            // Log the error
+            await logAction(
+                username,
+                'ERROR',
+                'STATION_CLOSURE',
+                null,
+                `Failed to create station closure for ${stationDisplay}: ${error.message}`,
+                req,
+                {
+                    station,
+                    grandTotal,
+                    roomCharges,
+                    complementary,
+                    cardAmount,
+                    cashAmount
+                },
+                null
+            );
         } catch (rollbackError) {
             console.error('Error rolling back transaction:', rollbackError);
         }
@@ -1421,6 +1753,94 @@ app.get('/api/fiscal-periods', (req, res) => {
             });
         }
     );
+});
+
+// Create a logging function
+async function logAction(user, actionType, entityType, entityId, details, req, oldValues = null, newValues = null) {
+    return new Promise((resolve, reject) => {
+        const sql = `INSERT INTO system_logs (
+            user, action_type, entity_type, entity_id, details, ip_address, old_values, new_values
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+        const ipAddress = req.ip || req.connection.remoteAddress;
+        
+        // Convert objects to JSON strings if they exist
+        const oldValuesStr = oldValues ? JSON.stringify(oldValues) : null;
+        const newValuesStr = newValues ? JSON.stringify(newValues) : null;
+
+        db.run(sql, [
+            user,
+            actionType,
+            entityType,
+            entityId,
+            details,
+            ipAddress,
+            oldValuesStr,
+            newValuesStr
+        ], function(err) {
+            if (err) {
+                console.error('Error logging action:', err);
+                reject(err);
+                return;
+            }
+            resolve(this.lastID);
+        });
+    });
+}
+
+// Add API endpoint to view logs
+app.get('/api/logs', async (req, res) => {
+    const username = req.headers['x-user'];
+    // You might want to restrict this to admin users only
+    
+    const filters = {
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+        actionType: req.query.actionType,
+        entityType: req.query.entityType,
+        user: req.query.user
+    };
+
+    let sql = `SELECT * FROM system_logs WHERE 1=1`;
+    const params = [];
+
+    if (filters.startDate) {
+        sql += ` AND date(timestamp) >= ?`;
+        params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+        sql += ` AND date(timestamp) <= ?`;
+        params.push(filters.endDate);
+    }
+    if (filters.actionType) {
+        sql += ` AND action_type = ?`;
+        params.push(filters.actionType);
+    }
+    if (filters.entityType) {
+        sql += ` AND entity_type = ?`;
+        params.push(filters.entityType);
+    }
+    if (filters.user) {
+        sql += ` AND user = ?`;
+        params.push(filters.user);
+    }
+
+    sql += ` ORDER BY timestamp DESC LIMIT 1000`;
+
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            console.error('Error fetching logs:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to fetch logs'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            logs: rows
+        });
+    });
 });
 
 // Gracefully close the database connection
