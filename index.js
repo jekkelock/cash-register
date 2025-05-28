@@ -257,8 +257,16 @@ app.get('/transaction', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'transaction.html'));
 });
 
+app.get('/bulk-actions', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'bulk-actions.html'));
+});
+
 app.get('/bulk-transactions', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'bulk-transactions.html'));
+});
+
+app.get('/bulk-edit', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'bulk-edit.html'));
 });
 
 // Add endpoint for bulk transactions
