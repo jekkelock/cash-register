@@ -37,9 +37,13 @@
             gap: 5px;
             font-size: 1em;
             transition: color 0.3s ease;
+            text-decoration: none;
         }
         .back-button:hover {
             color: #0056b3;
+        }
+        .back-button i {
+            font-size: 1.2em;
         }
         .header {
             text-align: center;
@@ -260,7 +264,7 @@
 </head>
 <body>
     <div class="container">
-        <button onclick="window.location.href='/bulk-actions'" class="back-button">
+        <button class="back-button" onclick="goBack()">
             <i class="fas fa-arrow-left"></i>
             Back
         </button>
@@ -633,6 +637,10 @@
             if (event.target === modal) {
                 closeModal();
             }
+        }
+
+        function goBack() {
+            window.location = '/bulk-actions';
         }
     </script>
 </body>
