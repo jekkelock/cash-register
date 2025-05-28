@@ -6,6 +6,7 @@
     <title>Cash Register - Edit Transactions</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.css">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,93 +45,43 @@
             text-align: center;
             margin-bottom: 30px;
             padding-top: 20px;
-        }
-        .filters {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .filter-group {
             display: flex;
-            flex-direction: column;
-        }
-        .filter-group label {
-            margin-bottom: 5px;
-            color: #495057;
-            font-size: 0.9em;
-        }
-        .filter-group input,
-        .filter-group select {
-            padding: 8px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-        .search-box {
+            justify-content: center;
+            align-items: center;
             position: relative;
         }
-        .search-box input {
-            padding-left: 30px;
-            width: 100%;
-            box-sizing: border-box;
+        .header h1 {
+            margin: 0;
+            padding: 0 100px;
         }
-        .search-box i {
+        .view-toggle {
             position: absolute;
-            left: 10px;
-            top: 38px;
+            right: 120px;
+            top: 50%;
             transform: translateY(-50%);
-            color: #6c757d;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 5px;
-        }
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
-            margin: 0;
-        }
-        .checkbox-group label {
-            margin: 0;
-            cursor: pointer;
-        }
-        .apply-filters {
-            grid-column: 1 / -1;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
             border-radius: 4px;
+            padding: 5px 10px;
             cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.3s ease;
-            margin-top: 10px;
-        }
-        .apply-filters:hover {
-            background-color: #0056b3;
-        }
-        .refresh-button {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: none;
-            border: none;
-            color: #6c757d;
-            cursor: pointer;
-            padding: 5px;
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 1em;
-            transition: color 0.3s ease;
+            color: #495057;
+            transition: all 0.3s ease;
         }
-        .refresh-button:hover {
+        .view-toggle:hover {
+            background: #e9ecef;
             color: #0056b3;
+        }
+        #debug-info {
+            display: none;
+        }
+        #hot-container {
+            margin-top: 20px;
+            height: 500px;
+            width: 100%;
+            overflow: visible;
         }
         .transactions-table {
             width: 100%;
@@ -205,22 +156,105 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
-        .save-button {
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-group label {
+            margin-bottom: 5px;
+            color: #495057;
+            font-size: 0.9em;
+        }
+        .filter-group input,
+        .filter-group select {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .search-box {
+            position: relative;
+        }
+        .search-box input {
+            padding-left: 30px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .search-box i {
+            position: absolute;
+            left: 10px;
+            top: 38px;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .apply-filters {
+            grid-column: 1 / -1;
             background-color: #007bff;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 10px;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 15px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
         }
-        .save-button:hover {
+        .apply-filters:hover {
             background-color: #0056b3;
         }
-        .no-results {
-            text-align: center;
-            padding: 20px;
+        .refresh-button {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
             color: #6c757d;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+        .refresh-button:hover {
+            color: #0056b3;
+        }
+        .save-button {
+            grid-column: 1 / -1;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+        .save-button:hover {
+            background-color: #218838;
+        }
+        .handsontable .htCore td.invalid {
+            background-color: #ffebee;
+        }
+        /* Debug styles */
+        .debug-info {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -233,6 +267,10 @@
 
         <div class="header">
             <h1>Edit Transactions</h1>
+            <button class="view-toggle" onclick="toggleView()">
+                <i class="fas fa-table"></i>
+                <span id="view-toggle-text">Switch to List View</span>
+            </button>
             <button onclick="loadTransactions()" class="refresh-button">
                 <i class="fas fa-sync-alt"></i>
                 Refresh
@@ -275,105 +313,224 @@
             </button>
         </div>
 
-        <table class="transactions-table">
-            <thead>
-                <tr>
-                    <th>Date & Time</th>
-                    <th>Amount (€)</th>
-                    <th>Payment Method</th>
-                    <th>Payment Type</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="transactions-body">
-                <!-- Transactions will be populated here -->
-            </tbody>
-        </table>
-    </div>
+        <div id="debug-info" class="debug-info">
+            <p>Loading status: <span id="loading-status">Not started</span></p>
+            <p>Data status: <span id="data-status">No data</span></p>
+        </div>
 
-    <!-- Edit Transaction Modal -->
-    <div id="edit-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
-            <h2>Edit Transaction</h2>
-            <form id="edit-form" class="modal-form">
-                <input type="hidden" id="edit-id">
-                <input type="hidden" id="edit-type">
-                <div>
-                    <label for="edit-amount">Amount (€)</label>
-                    <input type="number" id="edit-amount" step="0.01" required>
-                </div>
-                <div id="payment-method-group">
-                    <label for="edit-payment-method">Payment Method</label>
-                    <select id="edit-payment-method" required>
-                        <option value="cash">Cash</option>
-                        <option value="card">Card</option>
-                    </select>
-                </div>
-                <div id="payment-type-group">
-                    <label for="edit-payment-type">Payment Type</label>
-                    <select id="edit-payment-type" required>
-                        <option value="TAX">TAX</option>
-                        <option value="ACCOM">ACCOM</option>
-                        <option value="EXTRAS">EXTRAS</option>
-                        <option value="DAY USE">DAY USE</option>
-                        <option value="CHARGING STATION">CHARGING STATION</option>
-                        <option value="TRANSFER">TRANSFER</option>
-                        <option value="OTHER">OTHER</option>
-                    </select>
-                </div>
-                <div id="invoice-fields" style="display: none;">
+        <!-- Table View -->
+        <div id="table-view">
+            <div id="hot-container"></div>
+            <button onclick="saveChanges()" class="save-button">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </div>
+
+        <!-- List View -->
+        <div id="list-view" style="display: none;">
+            <table class="transactions-table">
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Amount (€)</th>
+                        <th>Payment Method</th>
+                        <th>Payment Type</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="transactions-body">
+                    <!-- Transactions will be populated here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="edit-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+                <h2>Edit Transaction</h2>
+                <form id="edit-form" class="modal-form">
+                    <input type="hidden" id="edit-id">
                     <div>
-                        <label for="edit-recipient">Recipient Name</label>
-                        <input type="text" id="edit-recipient" required>
+                        <label for="edit-amount">Amount (€)</label>
+                        <input type="number" id="edit-amount" step="0.01" required>
                     </div>
                     <div>
-                        <label for="edit-vat">VAT Number (Optional)</label>
-                        <input type="text" id="edit-vat">
+                        <label for="edit-payment-method">Payment Method</label>
+                        <select id="edit-payment-method" required>
+                            <option value="cash">Cash</option>
+                            <option value="card">Card</option>
+                        </select>
                     </div>
-                </div>
-                <div>
-                    <label for="edit-status">Status</label>
-                    <select id="edit-status" required>
-                        <option value="SUCCESS">Success</option>
-                        <option value="PENDING">Pending</option>
-                        <option value="FAILED">Failed</option>
-                    </select>
-                </div>
-                <button type="submit" class="save-button">Save Changes</button>
-            </form>
+                    <div>
+                        <label for="edit-payment-type">Payment Type</label>
+                        <select id="edit-payment-type" required>
+                            <option value="TAX">TAX</option>
+                            <option value="ACCOM">ACCOM</option>
+                            <option value="EXTRAS">EXTRAS</option>
+                            <option value="DAY USE">DAY USE</option>
+                            <option value="CHARGING STATION">CHARGING STATION</option>
+                            <option value="TRANSFER">TRANSFER</option>
+                            <option value="OTHER">OTHER</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="edit-status">Status</label>
+                        <select id="edit-status" required>
+                            <option value="SUCCESS">Success</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="FAILED">Failed</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="save-button">Save Changes</button>
+                </form>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.js"></script>
     <script>
-        // Initialize date picker
-        flatpickr("#date-range", {
-            mode: "range",
-            dateFormat: "Y-m-d",
-            defaultDate: [new Date(), new Date()],
-            onChange: function(selectedDates) {
-                // Remove automatic loading on date change
-            }
-        });
+        let hot;
+        let originalData = [];
+        let currentView = 'table'; // 'table' or 'list'
+        const paymentMethods = ['cash', 'card'];
+        const paymentTypes = ['TAX', 'ACCOM', 'EXTRAS', 'DAY USE', 'CHARGING STATION', 'TRANSFER', 'OTHER'];
+        const statusTypes = ['SUCCESS', 'PENDING', 'FAILED'];
 
-        // Load transactions when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set today's date in the date picker
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('date-range').value = `${today} to ${today}`;
-            
-            // Load initial transactions
-            loadTransactions();
-        });
-        
-        // Search on Enter key
-        document.getElementById('search').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                loadTransactions();
+        function toggleView() {
+            const tableView = document.getElementById('table-view');
+            const listView = document.getElementById('list-view');
+            const toggleText = document.getElementById('view-toggle-text');
+            const toggleIcon = document.querySelector('.view-toggle i');
+
+            if (currentView === 'table') {
+                tableView.style.display = 'none';
+                listView.style.display = 'block';
+                toggleText.textContent = 'Switch to Table View';
+                toggleIcon.className = 'fas fa-list';
+                currentView = 'list';
+            } else {
+                tableView.style.display = 'block';
+                listView.style.display = 'none';
+                toggleText.textContent = 'Switch to List View';
+                toggleIcon.className = 'fas fa-table';
+                currentView = 'table';
             }
-        });
+        }
+
+        // Debug function
+        function updateDebugInfo(loading, data) {
+            document.getElementById('loading-status').textContent = loading;
+            document.getElementById('data-status').textContent = data;
+        }
+
+        // Initialize Handsontable
+        function initializeTable(data) {
+            updateDebugInfo('Initializing table...', `Data length: ${data.length}`);
+            console.log('Initializing table with data:', data);
+
+            const container = document.getElementById('hot-container');
+            if (!container) {
+                console.error('Container not found!');
+                return;
+            }
+
+            if (hot) {
+                hot.destroy();
+            }
+
+            try {
+                hot = new Handsontable(container, {
+                    data: data,
+                    columns: [
+                        { data: 'id', readOnly: true, title: 'ID', width: 60 },
+                        { data: 'timestamp', readOnly: true, title: 'Date & Time', width: 150 },
+                        { 
+                            data: 'amount',
+                            type: 'numeric',
+                            numericFormat: { pattern: '0.00' },
+                            title: 'Amount (€)',
+                            width: 100
+                        },
+                        {
+                            data: 'payment_method',
+                            type: 'dropdown',
+                            source: paymentMethods,
+                            title: 'Payment Method',
+                            width: 120
+                        },
+                        {
+                            data: 'payment_type',
+                            type: 'dropdown',
+                            source: paymentTypes,
+                            title: 'Payment Type',
+                            width: 150
+                        },
+                        {
+                            data: 'status',
+                            type: 'dropdown',
+                            source: statusTypes,
+                            title: 'Status',
+                            width: 100
+                        }
+                    ],
+                    rowHeaders: true,
+                    colHeaders: true,
+                    filters: true,
+                    dropdownMenu: true,
+                    licenseKey: 'non-commercial-and-evaluation',
+                    stretchH: 'all',
+                    autoWrapRow: true,
+                    height: 450,
+                    width: '100%',
+                    afterChange: function(changes, source) {
+                        if (!changes) return;
+                        
+                        changes.forEach(([row, prop, oldValue, newValue]) => {
+                            if (prop === 'amount' && (isNaN(newValue) || newValue <= 0)) {
+                                hot.setCellMeta(row, hot.propToCol(prop), 'className', 'invalid');
+                            } else {
+                                hot.setCellMeta(row, hot.propToCol(prop), 'className', '');
+                            }
+                        });
+                        
+                        hot.render();
+                    }
+                });
+
+                updateDebugInfo('Table initialized', `Rendered ${data.length} rows`);
+                console.log('Table initialized successfully');
+            } catch (error) {
+                console.error('Error initializing table:', error);
+                updateDebugInfo('Error initializing table', error.message);
+            }
+
+            originalData = JSON.parse(JSON.stringify(data));
+        }
+
+        function updateListView(transactions) {
+            const tbody = document.getElementById('transactions-body');
+            tbody.innerHTML = '';
+
+            transactions.forEach(transaction => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(transaction.timestamp).toLocaleString()}</td>
+                    <td>${transaction.amount.toFixed(2)}</td>
+                    <td>${transaction.payment_method}</td>
+                    <td>${transaction.payment_type}</td>
+                    <td>${transaction.status}</td>
+                    <td>
+                        <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
 
         function loadTransactions() {
             const dateRange = document.getElementById('date-range').value;
@@ -381,7 +538,6 @@
             const paymentType = document.getElementById('payment-type').value;
             const search = document.getElementById('search').value;
 
-            // Construct the query parameters
             const params = new URLSearchParams();
             if (dateRange) params.append('dateRange', dateRange);
             if (paymentMethod) params.append('paymentMethod', paymentMethod);
@@ -391,57 +547,32 @@
             fetch(`/api/transactions?${params.toString()}`)
                 .then(response => response.json())
                 .then(transactions => {
-                    const tbody = document.getElementById('transactions-body');
-                    tbody.innerHTML = '';
-
                     if (transactions.length === 0) {
-                        tbody.innerHTML = `
-                            <tr>
-                                <td colspan="6" class="no-results">No transactions found</td>
-                            </tr>
-                        `;
+                        initializeTable([]);
+                        updateListView([]);
                         return;
                     }
 
-                    transactions.forEach(transaction => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${new Date(transaction.timestamp).toLocaleString()}</td>
-                            <td>${transaction.amount.toFixed(2)}</td>
-                            <td>${transaction.payment_method}</td>
-                            <td>${transaction.payment_type}</td>
-                            <td>${transaction.status}</td>
-                            <td>
-                                <button class="edit-button" onclick='openEditModal(${JSON.stringify(transaction).replace(/'/g, "&#39;")})'>
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </td>
-                        `;
-                        tbody.appendChild(row);
-                    });
+                    const formattedTransactions = transactions.map(t => ({
+                        ...t,
+                        timestamp: new Date(t.timestamp).toLocaleString()
+                    }));
+
+                    initializeTable(formattedTransactions);
+                    updateListView(formattedTransactions);
                 })
-                .catch(error => console.error('Error loading transactions:', error));
+                .catch(error => {
+                    console.error('Error loading transactions:', error);
+                    alert('Failed to load transactions');
+                });
         }
 
         function openEditModal(transaction) {
             document.getElementById('edit-modal').style.display = 'block';
             document.getElementById('edit-id').value = transaction.id;
-            document.getElementById('edit-type').value = transaction.is_invoice ? 'invoice' : 'transaction';
             document.getElementById('edit-amount').value = transaction.amount;
-
-            const isInvoice = transaction.is_invoice;
-            document.getElementById('payment-method-group').style.display = isInvoice ? 'none' : 'block';
-            document.getElementById('payment-type-group').style.display = isInvoice ? 'none' : 'block';
-            document.getElementById('invoice-fields').style.display = isInvoice ? 'block' : 'none';
-
-            if (isInvoice) {
-                document.getElementById('edit-recipient').value = transaction.recipient_name;
-                document.getElementById('edit-vat').value = transaction.vat_number || '';
-            } else {
-                document.getElementById('edit-payment-method').value = transaction.payment_method;
-                document.getElementById('edit-payment-type').value = transaction.payment_type;
-            }
-            
+            document.getElementById('edit-payment-method').value = transaction.payment_method;
+            document.getElementById('edit-payment-type').value = transaction.payment_type;
             document.getElementById('edit-status').value = transaction.status;
         }
 
@@ -452,25 +583,15 @@
         document.getElementById('edit-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const transactionId = document.getElementById('edit-id').value;
-            const transactionType = document.getElementById('edit-type').value;
-            const isInvoice = transactionType === 'invoice';
 
             const updatedTransaction = {
                 amount: parseFloat(document.getElementById('edit-amount').value),
+                payment_method: document.getElementById('edit-payment-method').value,
+                payment_type: document.getElementById('edit-payment-type').value,
                 status: document.getElementById('edit-status').value
             };
 
-            if (isInvoice) {
-                updatedTransaction.recipient_name = document.getElementById('edit-recipient').value;
-                updatedTransaction.vat_number = document.getElementById('edit-vat').value;
-                endpoint = `/api/invoices/${transactionId}`;
-            } else {
-                updatedTransaction.payment_method = document.getElementById('edit-payment-method').value;
-                updatedTransaction.payment_type = document.getElementById('edit-payment-type').value;
-                endpoint = `/api/transactions/${transactionId}`;
-            }
-
-            fetch(endpoint, {
+            fetch(`/api/transactions/${transactionId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -490,6 +611,20 @@
                 console.error('Error updating transaction:', error);
                 alert('Failed to update transaction');
             });
+        });
+
+        // Initialize date picker and load transactions
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-range').value = `${today} to ${today}`;
+            
+            flatpickr("#date-range", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                defaultDate: [new Date(), new Date()]
+            });
+
+            loadTransactions();
         });
 
         // Close modal when clicking outside
