@@ -21,34 +21,35 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-section {
             position: relative;
+            height: 40px;
+            margin-bottom: 20px;
         }
         .back-button {
-            position: absolute;
-            top: 20px;
-            left: 20px;
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
             background: none;
             border: none;
             color: #6c757d;
-            cursor: pointer;
-            padding: 5px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 1em;
-            transition: color 0.3s ease;
+            font-size: 16px;
             text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
         }
         .back-button:hover {
             color: #0056b3;
         }
         .back-button i {
-            font-size: 1.2em;
+            font-size: 16px;
+            margin-right: 8px;
         }
         .header {
             text-align: center;
             margin-bottom: 30px;
-            padding-top: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -264,11 +265,13 @@
 </head>
 <body>
     <div class="container">
-        <button class="back-button" onclick="goBack()">
-            <i class="fas fa-arrow-left"></i>
-            Back
-        </button>
-
+        <div class="nav-section">
+            <a href="/bulk-actions" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+        </div>
+        
         <div class="header">
             <h1>Edit Transactions</h1>
             <button class="view-toggle" onclick="toggleView()">
@@ -667,10 +670,6 @@
             if (event.target === modal) {
                 closeModal();
             }
-        }
-
-        function goBack() {
-            window.location = '/bulk-actions';
         }
 
         function saveChanges() {
