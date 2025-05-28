@@ -146,6 +146,71 @@
         .submit-button i {
             margin-right: 8px;
         }
+        .edit-button {
+            float: right;
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        .edit-button:hover {
+            color: #0056b3;
+            background-color: #f8f9fa;
+        }
+        .cancel-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease;
+            margin-left: 10px;
+        }
+        .cancel-button:hover {
+            background-color: #5a6268;
+        }
+        #edit-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .section-header h3 {
+            margin: 0;
+        }
+        .disabled-form {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        button[disabled] {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .date-info {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .date-info p {
+            margin: 5px 0;
+            color: #495057;
+        }
+        .date-info span {
+            font-weight: 500;
+            color: #212529;
+        }
     </style>
 </head>
 <body>
@@ -167,16 +232,64 @@
 
         <form id="closure-form" class="closure-form">
             <div class="section">
-                <h3>Grand Total</h3>
+                <h3>Select Station</h3>
                 <div class="input-group">
-                    <label>Total Amount</label>
-                    <input type="number" id="grand-total" step="0.01" value="0" required>
-                    <span class="unit">€</span>
+                    <label>Station</label>
+                    <select id="station" required style="width: 200px; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; background-color: white;">
+                        <option value="">Select a station...</option>
+                        <option value="pool_bar">Pool Bar</option>
+                        <option value="beach_bar">Beach Bar</option>
+                        <option value="restaurant">Restaurant</option>
+                        <option value="bistro">Bistro</option>
+                        <option value="spa">Spa</option>
+                        <option value="mini_market">Mini Market</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="section">
-                <h3>Deductions</h3>
+            <div id="last-closure" class="section" style="display: none;">
+                <div class="section-header">
+                    <h3>Last Closure</h3>
+                    <button type="button" id="edit-closure-btn" class="edit-button"><i class="fas fa-edit"></i> Edit</button>
+                </div>
+                <div class="last-closure-details">
+                    <div class="date-info">
+                        <p>Timestamp: <span id="last-closure-date">-</span></p>
+                        <p>Fiscal Date: <span id="last-closure-fiscal-date">-</span></p>
+                    </div>
+                    <div class="input-group">
+                        <label>Grand Total</label>
+                        <input type="number" id="edit-grand-total" step="0.01" disabled>
+                        <span class="unit">€</span>
+                    </div>
+                    <div class="input-group">
+                        <label>Room Charges</label>
+                        <input type="number" id="edit-room-charges" step="0.01" disabled>
+                        <span class="unit">€</span>
+                    </div>
+                    <div class="input-group">
+                        <label>Complementary</label>
+                        <input type="number" id="edit-complementary" step="0.01" disabled>
+                        <span class="unit">€</span>
+                    </div>
+                    <div class="total-row">
+                        <span>Net Amount:</span>
+                        <span id="edit-net-amount">€0.00</span>
+                    </div>
+                    <div id="edit-actions" style="display: none; margin-top: 15px;">
+                        <button type="button" id="save-edit-btn" class="submit-button">Save Changes</button>
+                        <button type="button" id="cancel-edit-btn" class="cancel-button">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="new-closure-form" class="section">
+                <h3>New Closure</h3>
+                <div class="input-group">
+                    <label>Grand Total</label>
+                    <input type="number" id="grand-total" step="0.01" value="0" required>
+                    <span class="unit">€</span>
+                </div>
                 <div class="input-group">
                     <label>Room Charges</label>
                     <input type="number" id="room-charges" step="0.01" value="0" required>
@@ -187,29 +300,28 @@
                     <input type="number" id="complementary" step="0.01" value="0" required>
                     <span class="unit">€</span>
                 </div>
+                <div class="total-section">
+                    <div class="total-row">
+                        <span>Grand Total:</span>
+                        <span id="display-grand-total">€0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span>Room Charges:</span>
+                        <span id="display-room-charges">-€0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span>Maison:</span>
+                        <span id="display-complementary">-€0.00</span>
+                    </div>
+                    <hr>
+                    <div class="total-row">
+                        <span>Net Amount:</span>
+                        <span class="total-amount" id="net-amount">€0.00</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="total-section">
-                <div class="total-row">
-                    <span>Grand Total:</span>
-                    <span id="display-grand-total">€0.00</span>
-                </div>
-                <div class="total-row">
-                    <span>Room Charges:</span>
-                    <span id="display-room-charges">-€0.00</span>
-                </div>
-                <div class="total-row">
-                    <span>Maison:</span>
-                    <span id="display-complementary">-€0.00</span>
-                </div>
-                <hr>
-                <div class="total-row">
-                    <span>Net Amount:</span>
-                    <span class="total-amount" id="net-amount">€0.00</span>
-                </div>
-            </div>
-
-            <button type="submit" class="submit-button">
+            <button type="submit" id="submit-button" class="submit-button">
                 <i class="fas fa-save"></i>
                 Process Station Closure
             </button>
@@ -222,6 +334,178 @@
             const username = localStorage.getItem('username');
             if (!username) {
                 window.location.href = '/login';
+            }
+        });
+
+        let currentClosureId = null;
+        let isEditing = false;
+        let hasClosureToday = false;
+
+        // Function to check if the date is today
+        function isToday(dateString) {
+            const date = new Date(dateString);
+            const today = new Date();
+            return date.getDate() === today.getDate() &&
+                   date.getMonth() === today.getMonth() &&
+                   date.getFullYear() === today.getFullYear();
+        }
+
+        // Function to update edit form totals
+        function updateEditTotals() {
+            const grandTotal = parseFloat(document.getElementById('edit-grand-total').value || 0);
+            const roomCharges = parseFloat(document.getElementById('edit-room-charges').value || 0);
+            const complementary = parseFloat(document.getElementById('edit-complementary').value || 0);
+            const netAmount = grandTotal - roomCharges - complementary;
+            document.getElementById('edit-net-amount').textContent = `€${netAmount.toFixed(2)}`;
+        }
+
+        // Function to toggle new closure form
+        function toggleNewClosureForm(enable) {
+            const form = document.getElementById('new-closure-form');
+            const submitButton = document.getElementById('submit-button');
+            
+            if (!enable) {
+                form.classList.add('disabled-form');
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-lock"></i> Closure Already Submitted Today';
+            } else {
+                form.classList.remove('disabled-form');
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-save"></i> Process Station Closure';
+            }
+        }
+
+        // Add event listeners for edit form inputs
+        document.getElementById('edit-grand-total').addEventListener('input', updateEditTotals);
+        document.getElementById('edit-room-charges').addEventListener('input', updateEditTotals);
+        document.getElementById('edit-complementary').addEventListener('input', updateEditTotals);
+
+        // Toggle edit mode
+        document.getElementById('edit-closure-btn').addEventListener('click', function(e) {
+            e.preventDefault(); // Prevent form submission
+            const inputs = ['edit-grand-total', 'edit-room-charges', 'edit-complementary'];
+            const editActions = document.getElementById('edit-actions');
+            
+            if (!isEditing) {
+                // Enable editing
+                inputs.forEach(id => {
+                    document.getElementById(id).disabled = false;
+                });
+                editActions.style.display = 'flex';
+                this.innerHTML = '<i class="fas fa-times"></i> Cancel';
+                isEditing = true;
+            } else {
+                // Cancel editing
+                inputs.forEach(id => {
+                    document.getElementById(id).disabled = true;
+                });
+                editActions.style.display = 'none';
+                this.innerHTML = '<i class="fas fa-edit"></i> Edit';
+                isEditing = false;
+                // Refresh the display to revert changes
+                document.getElementById('station').dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Save changes
+        document.getElementById('save-edit-btn').addEventListener('click', async function(e) {
+            e.preventDefault(); // Prevent form submission
+            if (!currentClosureId) return;
+
+            const grandTotal = parseFloat(document.getElementById('edit-grand-total').value || 0);
+            const roomCharges = parseFloat(document.getElementById('edit-room-charges').value || 0);
+            const complementary = parseFloat(document.getElementById('edit-complementary').value || 0);
+            const netAmount = grandTotal - roomCharges - complementary;
+
+            try {
+                const response = await fetch(`/api/station-closure/${currentClosureId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        grandTotal,
+                        roomCharges,
+                        complementary,
+                        netAmount
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.status === 'SUCCESS') {
+                    alert('Changes saved successfully');
+                    // Reset edit mode
+                    document.getElementById('edit-closure-btn').click();
+                    // Refresh the display
+                    document.getElementById('station').dispatchEvent(new Event('change'));
+                } else {
+                    throw new Error(result.message || 'Failed to save changes');
+                }
+            } catch (error) {
+                console.error('Error saving changes:', error);
+                alert('Error: ' + error.message);
+            }
+        });
+
+        // Cancel edit
+        document.getElementById('cancel-edit-btn').addEventListener('click', function(e) {
+            e.preventDefault(); // Prevent form submission
+            document.getElementById('edit-closure-btn').click();
+        });
+
+        // Update station selection handler
+        document.getElementById('station').addEventListener('change', async function(e) {
+            const station = e.target.value;
+            if (!station) {
+                document.getElementById('last-closure').style.display = 'none';
+                currentClosureId = null;
+                toggleNewClosureForm(false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/station-closure/${station}`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+
+                if (result.status === 'SUCCESS' && result.closure) {
+                    const closure = result.closure;
+                    currentClosureId = closure.id;
+                    hasClosureToday = isToday(closure.fiscal_date);
+                    
+                    document.getElementById('last-closure').style.display = 'block';
+                    document.getElementById('last-closure-date').textContent = new Date(closure.timestamp).toLocaleString();
+                    document.getElementById('last-closure-fiscal-date').textContent = new Date(closure.fiscal_date).toLocaleDateString();
+                    
+                    // Update edit form values
+                    document.getElementById('edit-grand-total').value = closure.grand_total;
+                    document.getElementById('edit-room-charges').value = closure.room_charges;
+                    document.getElementById('edit-complementary').value = closure.complementary;
+                    
+                    // Reset edit mode
+                    const editBtn = document.getElementById('edit-closure-btn');
+                    if (isEditing) editBtn.click();
+                    
+                    // Update totals
+                    updateEditTotals();
+
+                    // Disable new closure form if there's already a closure today
+                    toggleNewClosureForm(!hasClosureToday);
+                } else {
+                    document.getElementById('last-closure').style.display = 'none';
+                    currentClosureId = null;
+                    hasClosureToday = false;
+                    toggleNewClosureForm(true);
+                }
+            } catch (error) {
+                console.error('Error fetching last closure:', error);
+                document.getElementById('last-closure').style.display = 'none';
+                currentClosureId = null;
+                hasClosureToday = false;
+                toggleNewClosureForm(true);
             }
         });
 
@@ -240,12 +524,10 @@
 
         // Add Excel-like behavior to all inputs
         document.querySelectorAll('input[type="number"]').forEach(input => {
-            // Select all text when input receives focus
             input.addEventListener('focus', function(e) {
                 e.target.select();
             });
             
-            // Prevent partial selection on mouseup
             input.addEventListener('mouseup', function(e) {
                 if (e.target === document.activeElement) {
                     e.preventDefault();
@@ -276,16 +558,41 @@
         document.getElementById('closure-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
-            const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
-            const complementary = parseFloat(document.getElementById('complementary').value || 0);
-            const netAmount = grandTotal - roomCharges - complementary;
-
             try {
+                const station = document.getElementById('station').value;
+                if (!station) {
+                    alert('Please select a station');
+                    return;
+                }
+
+                // Get values and ensure they are numbers
+                const grandTotal = parseFloat(document.getElementById('grand-total').value || 0);
+                const roomCharges = parseFloat(document.getElementById('room-charges').value || 0);
+                const complementary = parseFloat(document.getElementById('complementary').value || 0);
+                const netAmount = grandTotal - roomCharges - complementary;
+
+                // Validate numbers
+                if (isNaN(grandTotal) || isNaN(roomCharges) || isNaN(complementary) || isNaN(netAmount)) {
+                    alert('Please enter valid numbers for all amounts');
+                    return;
+                }
+
+                console.log('Submitting station closure:', {
+                    station,
+                    grandTotal,
+                    roomCharges,
+                    complementary,
+                    netAmount
+                });
+
                 const response = await fetch('/api/station-closure', {
                     method: 'POST',
-                    headers: getAuthHeaders(),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
                     body: JSON.stringify({
+                        station,
                         grandTotal,
                         roomCharges,
                         complementary,
@@ -293,20 +600,27 @@
                     })
                 });
 
+                const result = await response.json();
+                
                 if (!response.ok) {
-                    throw new Error('Failed to process station closure');
+                    throw new Error(result.message || 'Server error: ' + response.status);
                 }
 
-                const result = await response.json();
                 if (result.status === 'SUCCESS') {
                     alert('Station closure processed successfully');
-                    window.location.href = '/transaction?amount=' + netAmount;
+                    // Refresh the last closure display
+                    document.getElementById('station').dispatchEvent(new Event('change'));
+                    // Clear the form
+                    document.getElementById('grand-total').value = '0';
+                    document.getElementById('room-charges').value = '0';
+                    document.getElementById('complementary').value = '0';
+                    updateTotals();
                 } else {
-                    alert(result.message || 'Failed to process station closure');
+                    throw new Error(result.message || 'Failed to process station closure');
                 }
             } catch (error) {
                 console.error('Error processing station closure:', error);
-                alert('Failed to process station closure');
+                alert('Error: ' + error.message);
             }
         });
     </script>

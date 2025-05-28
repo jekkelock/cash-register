@@ -14,14 +14,52 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     }
     console.log('Connected to SQLite database');
 
+    // Create fiscal_periods table first as it's fundamental to the system
+    db.run(`CREATE TABLE IF NOT EXISTS fiscal_periods (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        current_date DATE NOT NULL,
+        closure_number INTEGER NOT NULL,
+        status TEXT DEFAULT 'ACTIVE',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        closed_at DATETIME
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating fiscal_periods table:', err);
+            return;
+        }
+        console.log('Fiscal periods table ready');
+
+        // Check if there's an active fiscal period
+        db.get(`SELECT * FROM fiscal_periods WHERE status = 'ACTIVE'`, [], (err, row) => {
+            if (err) {
+                console.error('Error checking fiscal periods:', err);
+                return;
+            }
+
+            if (!row) {
+                // Initialize with first fiscal period if none exists
+                db.run(`INSERT INTO fiscal_periods (current_date, closure_number, status) 
+                       VALUES (date('now'), 1, 'ACTIVE')`, (err) => {
+                    if (err) {
+                        console.error('Error initializing fiscal period:', err);
+                        return;
+                    }
+                    console.log('Initial fiscal period created');
+                });
+            }
+        });
+    });
+
     // Create transactions table if it doesn't exist
     db.run(`CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fiscal_date DATE,
         amount DECIMAL(10,2) NOT NULL,
         payment_method TEXT NOT NULL,
         payment_type TEXT NOT NULL,
         card_last_digits TEXT,
+        description TEXT,
         user TEXT DEFAULT 'system'
     )`, (err) => {
         if (err) {
@@ -29,6 +67,54 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
             return;
         }
         console.log('Transactions table ready');
+
+        // Check if columns exist
+        db.all("PRAGMA table_info(transactions)", [], (err, rows) => {
+            if (err) {
+                console.error('Error checking transactions table schema:', err);
+                return;
+            }
+            
+            const hasDescription = rows.some(row => row.name === 'description');
+            const hasFiscalDate = rows.some(row => row.name === 'fiscal_date');
+            
+            db.serialize(() => {
+                // Add description column if missing
+                if (!hasDescription) {
+                    console.log('Description column not found, adding it...');
+                    db.run("ALTER TABLE transactions ADD COLUMN description TEXT", (err) => {
+                        if (err) {
+                            console.error('Error adding description column:', err);
+                            return;
+                        }
+                        console.log('Added description column to transactions table');
+                    });
+                }
+
+                // Add fiscal_date column if missing
+                if (!hasFiscalDate) {
+                    console.log('Fiscal date column not found in transactions, adding it...');
+                    db.run("ALTER TABLE transactions ADD COLUMN fiscal_date DATE", (err) => {
+                        if (err) {
+                            console.error('Error adding fiscal_date column to transactions:', err);
+                            return;
+                        }
+                        console.log('Added fiscal_date column to transactions table');
+                        
+                        // Update existing rows to set fiscal_date to their timestamp date
+                        db.run(`UPDATE transactions 
+                               SET fiscal_date = date(timestamp) 
+                               WHERE fiscal_date IS NULL`, (err) => {
+                            if (err) {
+                                console.error('Error updating existing fiscal_date values in transactions:', err);
+                                return;
+                            }
+                            console.log('Updated existing transactions with fiscal_date values');
+                        });
+                    });
+                }
+            });
+        });
     });
 
     // Create users table if it doesn't exist
@@ -70,6 +156,7 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
     db.run(`CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fiscal_date DATE,
         amount DECIMAL(10,2) NOT NULL,
         date_issued DATE NOT NULL,
         recipient_name TEXT NOT NULL,
@@ -82,12 +169,44 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
             return;
         }
         console.log('Invoices table ready');
+
+        // Check if fiscal_date column exists
+        db.all("PRAGMA table_info(invoices)", [], (err, rows) => {
+            if (err) {
+                console.error('Error checking invoices table schema:', err);
+                return;
+            }
+            
+            const hasFiscalDate = rows.some(row => row.name === 'fiscal_date');
+            if (!hasFiscalDate) {
+                console.log('Fiscal date column not found in invoices, adding it...');
+                db.run("ALTER TABLE invoices ADD COLUMN fiscal_date DATE", (err) => {
+                    if (err) {
+                        console.error('Error adding fiscal_date column to invoices:', err);
+                        return;
+                    }
+                    console.log('Added fiscal_date column to invoices table');
+                    
+                    // Update existing rows to set fiscal_date to their timestamp date
+                    db.run(`UPDATE invoices 
+                           SET fiscal_date = date(timestamp) 
+                           WHERE fiscal_date IS NULL`, (err) => {
+                        if (err) {
+                            console.error('Error updating existing fiscal_date values in invoices:', err);
+                            return;
+                        }
+                        console.log('Updated existing invoices with fiscal_date values');
+                    });
+                });
+            }
+        });
     });
 
     // Create debts table
     db.run(`CREATE TABLE IF NOT EXISTS debts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fiscal_date DATE,
         person_name TEXT NOT NULL,
         amount_taken DECIMAL(10,2) NOT NULL,
         amount_returned DECIMAL(10,2) DEFAULT 0,
@@ -101,6 +220,93 @@ const db = new sqlite3.Database('cash_register.db', (err) => {
             return;
         }
         console.log('Debts table ready');
+
+        // Check if fiscal_date column exists
+        db.all("PRAGMA table_info(debts)", [], (err, rows) => {
+            if (err) {
+                console.error('Error checking debts table schema:', err);
+                return;
+            }
+            
+            const hasFiscalDate = rows.some(row => row.name === 'fiscal_date');
+            if (!hasFiscalDate) {
+                console.log('Fiscal date column not found in debts, adding it...');
+                db.run("ALTER TABLE debts ADD COLUMN fiscal_date DATE", (err) => {
+                    if (err) {
+                        console.error('Error adding fiscal_date column to debts:', err);
+                        return;
+                    }
+                    console.log('Added fiscal_date column to debts table');
+                    
+                    // Update existing rows to set fiscal_date to their timestamp date
+                    db.run(`UPDATE debts 
+                           SET fiscal_date = date(timestamp) 
+                           WHERE fiscal_date IS NULL`, (err) => {
+                        if (err) {
+                            console.error('Error updating existing fiscal_date values in debts:', err);
+                            return;
+                        }
+                        console.log('Updated existing debts with fiscal_date values');
+                    });
+                });
+            }
+        });
+    });
+
+    // Create station closures table
+    db.run(`CREATE TABLE IF NOT EXISTS station_closures (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fiscal_date DATE,
+        station TEXT NOT NULL,
+        grand_total DECIMAL(10,2) NOT NULL,
+        room_charges DECIMAL(10,2) DEFAULT 0,
+        complementary DECIMAL(10,2) DEFAULT 0,
+        net_amount DECIMAL(10,2) NOT NULL,
+        user TEXT DEFAULT 'system',
+        status TEXT DEFAULT 'PENDING'
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating station_closures table:', err);
+            return;
+        }
+        console.log('Station closures table ready');
+
+        // Check if fiscal_date column exists
+        db.all("PRAGMA table_info(station_closures)", [], (err, rows) => {
+            if (err) {
+                console.error('Error checking station_closures table schema:', err);
+                return;
+            }
+            
+            // Check if fiscal_date column exists
+            const hasFiscalDate = rows.some(row => row.name === 'fiscal_date');
+            if (!hasFiscalDate) {
+                console.log('Fiscal date column not found, adding it...');
+                db.serialize(() => {
+                    db.run("ALTER TABLE station_closures ADD COLUMN fiscal_date DATE", (err) => {
+                        if (err) {
+                            console.error('Error adding fiscal_date column:', err);
+                            return;
+                        }
+                        console.log('Added fiscal_date column to station_closures table');
+                        
+                        // Update existing rows to set fiscal_date to their timestamp date
+                        db.run(`UPDATE station_closures 
+                               SET fiscal_date = date(timestamp) 
+                               WHERE fiscal_date IS NULL`, (err) => {
+                            if (err) {
+                                console.error('Error updating existing fiscal_date values:', err);
+                                return;
+                            }
+                            console.log('Updated existing rows with fiscal_date values');
+                        });
+                    });
+                });
+            } else {
+                console.log('Fiscal date column already exists');
+            }
+        });
     });
 });
 
@@ -320,8 +526,8 @@ class CashRegister {
                 }
 
                 const sql = `INSERT INTO invoices 
-                    (amount, date_issued, recipient_name, vat_number, status, user) 
-                    VALUES (?, ?, ?, ?, ?, ?)`;
+                    (amount, date_issued, recipient_name, vat_number, status, user, fiscal_date) 
+                    VALUES (?, ?, ?, ?, ?, ?, date('now'))`;
                 
                 db.run(sql, [
                     amount,
@@ -351,8 +557,8 @@ class CashRegister {
 
             // Handle cash and card payments
             const sql = `INSERT INTO transactions 
-                (amount, payment_method, payment_type, card_last_digits, user) 
-                VALUES (?, ?, ?, ?, ?)`;
+                (amount, payment_method, payment_type, card_last_digits, user, fiscal_date) 
+                VALUES (?, ?, ?, ?, ?, date('now'))`;
             
             db.run(sql, [
                 amount,
@@ -763,7 +969,8 @@ app.post('/api/debts', (req, res) => {
         });
     }
 
-    const sql = `INSERT INTO debts (person_name, amount_taken, description, user) VALUES (?, ?, ?, ?)`;
+    const sql = `INSERT INTO debts (person_name, amount_taken, description, user, fiscal_date) 
+                 VALUES (?, ?, ?, ?, date('now'))`;
     const username = req.headers['x-user'] || 'system';
 
     db.run(sql, [person_name, amount_taken, description, username], function(err) {
@@ -870,71 +1077,241 @@ app.get('/station-closure', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'station-closure.html'));
 });
 
-// Add API endpoint for station closure
-app.post('/api/station-closure', (req, res) => {
+// Add API endpoint to get last station closure
+app.get('/api/station-closure/:station', (req, res) => {
+    const station = req.params.station;
+    
+    db.get(
+        `SELECT * FROM station_closures 
+         WHERE station = ? 
+         ORDER BY timestamp DESC 
+         LIMIT 1`,
+        [station],
+        (err, row) => {
+            if (err) {
+                console.error('Error fetching last station closure:', err);
+                return res.status(500).json({
+                    status: 'ERROR',
+                    message: 'Failed to fetch station closure'
+                });
+            }
+            
+            res.json({
+                status: 'SUCCESS',
+                closure: row || null
+            });
+        }
+    );
+});
+
+// Add API endpoint to update station closure
+app.put('/api/station-closure/:id', async (req, res) => {
+    const closureId = req.params.id;
     const { grandTotal, roomCharges, complementary, netAmount } = req.body;
     const username = req.headers['x-user'] || 'system';
 
-    // Create a record of the station closure
-    const sql = `INSERT INTO transactions 
-        (amount, payment_method, payment_type, user) 
-        VALUES (?, 'station_closure', 'closure', ?)`;
-
-    db.run(sql, [grandTotal, username], function(err) {
-        if (err) {
-            console.error('Error saving station closure:', err);
-            return res.status(500).json({
-                status: 'ERROR',
-                message: 'Failed to save station closure'
-            });
-        }
-
-        const closureId = this.lastID;
-
-        // Create records for deductions
-        const deductionsPromises = [];
-        
-        if (roomCharges > 0) {
-            deductionsPromises.push(
-                new Promise((resolve, reject) => {
-                    db.run(
-                        `INSERT INTO transactions (amount, payment_method, payment_type, user) VALUES (?, 'room_charge', 'deduction', ?)`,
-                        [-roomCharges, username],
-                        (err) => err ? reject(err) : resolve()
-                    );
-                })
-            );
-        }
-
-        if (complementary > 0) {
-            deductionsPromises.push(
-                new Promise((resolve, reject) => {
-                    db.run(
-                        `INSERT INTO transactions (amount, payment_method, payment_type, user) VALUES (?, 'complementary', 'deduction', ?)`,
-                        [-complementary, username],
-                        (err) => err ? reject(err) : resolve()
-                    );
-                })
-            );
-        }
-
-        Promise.all(deductionsPromises)
-            .then(() => {
-                res.json({
-                    status: 'SUCCESS',
-                    message: 'Station closure processed successfully',
-                    closureId,
-                    netAmount
-                });
-            })
-            .catch(error => {
-                console.error('Error saving deductions:', error);
-                res.status(500).json({
-                    status: 'ERROR',
-                    message: 'Failed to save deductions'
-                });
-            });
+    // Create a promise-based version of db.run
+    const dbRun = (sql, params) => new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) reject(err);
+            else resolve(this);
+        });
     });
+
+    try {
+        console.log('Starting transaction for updating station closure');
+        await dbRun('BEGIN TRANSACTION');
+
+        // First get the original closure to compare
+        const originalClosure = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM station_closures WHERE id = ?', [closureId], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+
+        if (!originalClosure) {
+            throw new Error('Station closure not found');
+        }
+
+        // Update the station closure
+        console.log('Updating station closure');
+        const updateResult = await dbRun(
+            `UPDATE station_closures 
+             SET grand_total = ?, 
+                 room_charges = ?, 
+                 complementary = ?, 
+                 net_amount = ?,
+                 user = ?
+             WHERE id = ?`,
+            [grandTotal, roomCharges || 0, complementary || 0, netAmount, username, closureId]
+        );
+
+        if (updateResult.changes === 0) {
+            throw new Error('Station closure not found');
+        }
+
+        // Update or insert transactions
+        // Main closure transaction
+        await dbRun(
+            `UPDATE transactions 
+             SET amount = ?, 
+                 user = ? 
+             WHERE payment_method = 'station_closure' 
+             AND description LIKE ?`,
+            [grandTotal, username, `%closure (ID: ${closureId})`]
+        );
+
+        // Handle room charges
+        if (roomCharges > 0) {
+            await dbRun(
+                `UPDATE transactions 
+                 SET amount = ?, 
+                     user = ? 
+                 WHERE payment_method = 'room_charge' 
+                 AND description LIKE ?`,
+                [-roomCharges, username, `%charges (Closure ID: ${closureId})`]
+            );
+        }
+
+        // Handle complementary
+        if (complementary > 0) {
+            await dbRun(
+                `UPDATE transactions 
+                 SET amount = ?, 
+                     user = ? 
+                 WHERE payment_method = 'complementary' 
+                 AND description LIKE ?`,
+                [-complementary, username, `%complementary (Closure ID: ${closureId})`]
+            );
+        }
+
+        console.log('All updates completed successfully');
+        await dbRun('COMMIT');
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Station closure updated successfully'
+        });
+    } catch (error) {
+        console.error('Error updating station closure:', error);
+        try {
+            await dbRun('ROLLBACK');
+            console.log('Transaction rolled back successfully');
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+
+        res.status(error.message === 'Station closure not found' ? 404 : 500).json({
+            status: 'ERROR',
+            message: error.message || 'Failed to update station closure'
+        });
+    }
+});
+
+// Add API endpoint for creating new station closure
+app.post('/api/station-closure', async (req, res) => {
+    console.log('Received station closure request:', req.body);
+    const { station, grandTotal, roomCharges, complementary, netAmount } = req.body;
+    const username = req.headers['x-user'] || 'system';
+
+    // Validate input data
+    if (!station) {
+        console.error('Station validation failed');
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Station must be selected'
+        });
+    }
+
+    // Validate numeric values
+    if (isNaN(grandTotal) || isNaN(netAmount)) {
+        console.error('Invalid amounts:', { grandTotal, netAmount });
+        return res.status(400).json({
+            status: 'ERROR',
+            message: 'Invalid amount values'
+        });
+    }
+
+    // Create a promise-based version of db.run
+    const dbRun = (sql, params) => new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) reject(err);
+            else resolve(this);
+        });
+    });
+
+    try {
+        console.log('Starting transaction for station closure');
+        await dbRun('BEGIN TRANSACTION');
+
+        console.log('Inserting into station_closures table');
+        // Insert into station_closures table
+        const closureResult = await dbRun(
+            `INSERT INTO station_closures (
+                station, grand_total, room_charges, complementary, net_amount, user
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            [station, grandTotal, roomCharges || 0, complementary || 0, netAmount, username]
+        );
+
+        const closureId = closureResult.lastID;
+        console.log('Station closure record created with ID:', closureId);
+
+        // Insert main closure transaction
+        console.log('Adding main closure transaction');
+        await dbRun(
+            `INSERT INTO transactions (
+                amount, payment_method, payment_type, user, description
+            ) VALUES (?, ?, ?, ?, ?)`,
+            [grandTotal, 'station_closure', 'closure', username, `${station} closure (ID: ${closureId})`]
+        );
+
+        // Insert room charges if any
+        if (roomCharges > 0) {
+            console.log('Adding room charges transaction');
+            await dbRun(
+                `INSERT INTO transactions (
+                    amount, payment_method, payment_type, user, description
+                ) VALUES (?, ?, ?, ?, ?)`,
+                [-roomCharges, 'room_charge', 'deduction', username, `${station} room charges (Closure ID: ${closureId})`]
+            );
+        }
+
+        // Insert complementary charges if any
+        if (complementary > 0) {
+            console.log('Adding complementary transaction');
+            await dbRun(
+                `INSERT INTO transactions (
+                    amount, payment_method, payment_type, user, description
+                ) VALUES (?, ?, ?, ?, ?)`,
+                [-complementary, 'complementary', 'deduction', username, `${station} complementary (Closure ID: ${closureId})`]
+            );
+        }
+
+        console.log('All transactions completed successfully');
+        await dbRun('COMMIT');
+
+        res.json({
+            status: 'SUCCESS',
+            message: 'Station closure processed successfully',
+            closureId,
+            netAmount
+        });
+    } catch (error) {
+        console.error('Error in station closure process:', error);
+        try {
+            await dbRun('ROLLBACK');
+            console.log('Transaction rolled back successfully');
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+
+        res.status(500).json({
+            status: 'ERROR',
+            message: 'Failed to save transactions',
+            error: error.message
+        });
+    }
 });
 
 // Gracefully close the database connection
