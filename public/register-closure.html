@@ -154,7 +154,7 @@
         <div class="info-section">
             <div class="info-row">
                 <span class="info-label">Base Register Amount:</span>
-                <span class="info-value">€800.00</span>
+                <span class="info-value" id="base-amount">Loading...</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Cash Income:</span>
@@ -177,7 +177,7 @@
             </div>
             <div class="total-row">
                 <span>Amount to Keep in Register:</span>
-                <span class="total-amount">€800.00</span>
+                <span class="total-amount" id="keep-amount">Loading...</span>
             </div>
         </div>
 
@@ -188,12 +188,15 @@
     </div>
 
     <script>
+        let baseAmount = 300.00; // Default value, will be updated from database
+
         // Check if user is logged in
         window.addEventListener('load', () => {
             const username = localStorage.getItem('username');
             if (!username) {
                 window.location.href = '/login';
             }
+            loadBaseAmount();
             loadRegisterData();
         });
 
@@ -202,6 +205,27 @@
                 'Content-Type': 'application/json',
                 'x-user': localStorage.getItem('username')
             };
+        }
+
+        async function loadBaseAmount() {
+            try {
+                const response = await fetch('/api/register/base-amount', {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.status === 'SUCCESS') {
+                    baseAmount = data.baseAmount;
+                    document.getElementById('base-amount').textContent = `€${baseAmount.toFixed(2)}`;
+                    document.getElementById('keep-amount').textContent = `€${baseAmount.toFixed(2)}`;
+                } else {
+                    throw new Error('Failed to fetch base amount');
+                }
+            } catch (error) {
+                console.error('Error loading base amount:', error);
+                document.getElementById('base-amount').textContent = `€${baseAmount.toFixed(2)} (Default)`;
+                document.getElementById('keep-amount').textContent = `€${baseAmount.toFixed(2)} (Default)`;
+            }
         }
 
         async function loadRegisterData() {
@@ -250,37 +274,33 @@
                 document.getElementById('closure-cash').textContent = `€${closureCash.toFixed(2)}`;
                 document.getElementById('expenses').textContent = `-€${expenses.toFixed(2)}`;
 
-                // Calculate amount to move to safe (total - base amount)
-                const totalCash = 800 + cashIncome + closureCash - expenses;
-                const moveToSafe = totalCash - 800;
-                document.getElementById('safe-amount').textContent = `€${moveToSafe.toFixed(2)}`;
-
+                // Calculate amount to move to safe (total cash - base amount)
+                const totalCash = cashIncome + closureCash - expenses;
+                const safeAmount = Math.max(0, totalCash - baseAmount);
+                document.getElementById('safe-amount').textContent = `€${safeAmount.toFixed(2)}`;
             } catch (error) {
                 console.error('Error loading register data:', error);
-                alert('Error loading register data: ' + error.message);
             }
         }
 
         document.getElementById('process-button').addEventListener('click', async () => {
-            if (confirm('Are you sure you want to process the register closure? This will close the current fiscal period.')) {
-                try {
-                    const response = await fetch('/api/register-closure', {
-                        method: 'POST',
-                        headers: getAuthHeaders()
-                    });
-
-                    const result = await response.json();
-                    
-                    if (result.status === 'SUCCESS') {
-                        alert('Register closure processed successfully');
-                        window.location.href = '/';
-                    } else {
-                        throw new Error(result.message || 'Failed to process closure');
-                    }
-                } catch (error) {
-                    console.error('Error processing closure:', error);
-                    alert('Error: ' + error.message);
+            try {
+                const response = await fetch('/api/register-closure', {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'SUCCESS') {
+                    alert('Register closure processed successfully');
+                    window.location.href = '/';
+                } else {
+                    throw new Error(data.message || 'Failed to process register closure');
                 }
+            } catch (error) {
+                console.error('Error processing register closure:', error);
+                alert('Failed to process register closure: ' + error.message);
             }
         });
 

@@ -91,38 +91,6 @@
             color: #666;
             font-size: 0.9em;
         }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background-color: white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            border-radius: 0 0 10px 10px;
-            z-index: 1000;
-            margin-top: 2px;
-        }
-        .dropdown-content.show {
-            display: block;
-        }
-        .dropdown-item {
-            padding: 15px;
-            text-align: center;
-            transition: background-color 0.3s;
-            color: #333;
-            text-decoration: none;
-            display: block;
-        }
-        .dropdown-item:hover {
-            background-color: #f8f9fa;
-        }
-        .dropdown-item:first-child {
-            border-radius: 0;
-        }
-        .dropdown-item:last-child {
-            border-radius: 0 0 10px 10px;
-        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -222,22 +190,6 @@
             
             return originalFetch.apply(window, args);
         };
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(event) {
-            const dropdown = document.getElementById('viewDropdown');
-            const viewMenuItem = event.target.closest('.menu-item');
-            
-            if (!viewMenuItem && dropdown.classList.contains('show')) {
-                dropdown.classList.remove('show');
-            }
-        });
-
-        function toggleViewMenu(event) {
-            event.preventDefault();
-            const dropdown = document.getElementById('viewDropdown');
-            dropdown.classList.toggle('show');
-        }
     </script>
 </body>
 </html> 
