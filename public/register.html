@@ -160,6 +160,21 @@
         .save-button i {
             margin-right: 8px;
         }
+        .info-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-row {
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+        }
+        .info-value {
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
@@ -257,6 +272,7 @@
 
             <div class="total-section">
                 <p>Total in Register: <span class="total-amount" id="total-amount">€0.00</span></p>
+                <p>Difference: <span class="total-amount" id="register-difference">€0.00</span></p>
             </div>
 
             <button type="submit" class="save-button">
@@ -357,6 +373,68 @@
             // Update total
             const total = billsTotal + coinsTotal;
             document.getElementById('total-amount').textContent = `€${total.toFixed(2)}`;
+            
+            // Calculate and update difference
+            calculateDifference(total);
+        }
+
+        async function calculateDifference(currentAmount) {
+            try {
+                // Get current fiscal period
+                const periodResponse = await fetch('/api/fiscal-period/current', {
+                    headers: getAuthHeaders()
+                });
+                const periodData = await periodResponse.json();
+                
+                if (periodData.status !== 'SUCCESS') {
+                    throw new Error('Failed to fetch fiscal period');
+                }
+
+                const currentDate = new Date(periodData.fiscalPeriod.current_date);
+                
+                // Get base amount
+                const baseResponse = await fetch('/api/register/base-amount', {
+                    headers: getAuthHeaders()
+                });
+                const baseData = await baseResponse.json();
+                const baseAmount = parseFloat(baseData.baseAmount);
+                
+                // Get all transactions for the current fiscal date
+                const response = await fetch('/api/transactions?' + new URLSearchParams({
+                    dateRange: `${currentDate.toISOString().split('T')[0]} to ${currentDate.toISOString().split('T')[0]}`
+                }), {
+                    headers: getAuthHeaders()
+                });
+                
+                const transactions = await response.json();
+                
+                // Calculate totals
+                let cashIncome = 0;
+                let closureCash = 0;
+                let expenses = 0;
+
+                transactions.forEach(transaction => {
+                    const amount = parseFloat(transaction.amount);
+                    if (transaction.payment_method === 'cash' && amount > 0) {
+                        cashIncome += amount;
+                    } else if (transaction.payment_method === 'station_closure') {
+                        closureCash += amount * 0.7;
+                    } else if (['debt', 'invoice'].includes(transaction.payment_method) && amount < 0) {
+                        expenses += Math.abs(amount);
+                    }
+                });
+
+                // Calculate expected amount and difference
+                const expectedAmount = baseAmount + cashIncome + closureCash - expenses;
+                const difference = currentAmount - expectedAmount;
+                
+                // Update difference display
+                const differenceElement = document.getElementById('register-difference');
+                differenceElement.textContent = `€${difference.toFixed(2)}`;
+                differenceElement.style.color = difference < 0 ? '#dc3545' : (difference > 0 ? '#28a745' : '#212529');
+            } catch (error) {
+                console.error('Error calculating difference:', error);
+            }
         }
 
         // Add Excel-like behavior to all inputs

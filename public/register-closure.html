@@ -168,6 +168,18 @@
                 <span class="info-label">Expenses (Debts + Invoices):</span>
                 <span class="info-value" id="expenses">-€0.00</span>
             </div>
+            <div class="info-row">
+                <span class="info-label">Expected Register Amount:</span>
+                <span class="info-value" id="expected-amount">€0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Actual Register Amount:</span>
+                <span class="info-value" id="actual-amount">€0.00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Difference:</span>
+                <span class="info-value" id="register-difference">€0.00</span>
+            </div>
         </div>
 
         <div class="total-section">
@@ -299,12 +311,24 @@
                 document.getElementById('closure-cash').textContent = `€${closureCash.toFixed(2)}`;
                 document.getElementById('expenses').textContent = `-€${expenses.toFixed(2)}`;
 
+                // Calculate expected register amount
+                const expectedAmount = baseAmount + cashIncome + closureCash - expenses;
+                document.getElementById('expected-amount').textContent = `€${expectedAmount.toFixed(2)}`;
+                document.getElementById('actual-amount').textContent = `€${currentRegisterAmount.toFixed(2)}`;
+
+                // Calculate and display the difference
+                const difference = currentRegisterAmount - expectedAmount;
+                const differenceElement = document.getElementById('register-difference');
+                differenceElement.textContent = `€${difference.toFixed(2)}`;
+                differenceElement.style.color = difference < 0 ? '#dc3545' : (difference > 0 ? '#28a745' : '#212529');
+
                 // Calculate amount to move to safe:
                 // If current register amount is more than base amount, move the excess to safe
                 console.log('Register calculation:', {
                     currentRegisterAmount,
                     baseAmount,
-                    difference: currentRegisterAmount - baseAmount
+                    expectedAmount,
+                    difference,
                 });
                 
                 const amountToMove = Math.max(0, currentRegisterAmount - baseAmount);
