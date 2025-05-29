@@ -189,6 +189,7 @@
 
     <script>
         let baseAmount = 300.00; // Default value, will be updated from database
+        let baseAmountLoaded = false;
 
         // Check if user is logged in
         window.addEventListener('load', () => {
@@ -196,8 +197,9 @@
             if (!username) {
                 window.location.href = '/login';
             }
-            loadBaseAmount();
-            loadRegisterData();
+            loadBaseAmount().then(() => {
+                loadRegisterData();
+            });
         });
 
         function getAuthHeaders() {
@@ -215,9 +217,11 @@
                 const data = await response.json();
                 
                 if (data.status === 'SUCCESS') {
-                    baseAmount = data.baseAmount;
+                    baseAmount = parseFloat(data.baseAmount);
+                    console.log('Loaded base amount:', baseAmount);
                     document.getElementById('base-amount').textContent = `€${baseAmount.toFixed(2)}`;
                     document.getElementById('keep-amount').textContent = `€${baseAmount.toFixed(2)}`;
+                    baseAmountLoaded = true;
                 } else {
                     throw new Error('Failed to fetch base amount');
                 }
@@ -225,10 +229,16 @@
                 console.error('Error loading base amount:', error);
                 document.getElementById('base-amount').textContent = `€${baseAmount.toFixed(2)} (Default)`;
                 document.getElementById('keep-amount').textContent = `€${baseAmount.toFixed(2)} (Default)`;
+                baseAmountLoaded = true;
             }
         }
 
         async function loadRegisterData() {
+            if (!baseAmountLoaded) {
+                console.log('Waiting for base amount to load...');
+                await loadBaseAmount();
+            }
+
             try {
                 // Get current fiscal period
                 const periodResponse = await fetch('/api/fiscal-period/current', {
@@ -241,6 +251,13 @@
                 }
 
                 const currentDate = new Date(periodData.fiscalPeriod.current_date);
+                
+                // Get current register amount
+                const drawerResponse = await fetch('/api/drawer', {
+                    headers: getAuthHeaders()
+                });
+                const drawerData = await drawerResponse.json();
+                const currentRegisterAmount = parseFloat(drawerData.total);
                 
                 // Get all transactions for the current fiscal date
                 const response = await fetch('/api/transactions?' + new URLSearchParams({
@@ -258,14 +275,22 @@
 
                 transactions.forEach(transaction => {
                     const amount = parseFloat(transaction.amount);
+                    console.log('Processing transaction:', {
+                        method: transaction.payment_method,
+                        amount: amount,
+                        original: transaction.amount
+                    });
                     
                     if (transaction.payment_method === 'cash' && amount > 0) {
                         cashIncome += amount;
+                        console.log('Added to cash income:', amount, 'Total now:', cashIncome);
                     } else if (transaction.payment_method === 'station_closure') {
                         // Assuming 70% of closure amount is cash (you may want to adjust this)
                         closureCash += amount * 0.7;
+                        console.log('Added to closure cash:', amount * 0.7, 'Total now:', closureCash);
                     } else if (['debt', 'invoice'].includes(transaction.payment_method) && amount < 0) {
                         expenses += Math.abs(amount);
+                        console.log('Added to expenses:', Math.abs(amount), 'Total now:', expenses);
                     }
                 });
 
@@ -274,10 +299,16 @@
                 document.getElementById('closure-cash').textContent = `€${closureCash.toFixed(2)}`;
                 document.getElementById('expenses').textContent = `-€${expenses.toFixed(2)}`;
 
-                // Calculate amount to move to safe (total cash - base amount)
-                const totalCash = cashIncome + closureCash - expenses;
-                const safeAmount = Math.max(0, totalCash - baseAmount);
-                document.getElementById('safe-amount').textContent = `€${safeAmount.toFixed(2)}`;
+                // Calculate amount to move to safe:
+                // If current register amount is more than base amount, move the excess to safe
+                console.log('Register calculation:', {
+                    currentRegisterAmount,
+                    baseAmount,
+                    difference: currentRegisterAmount - baseAmount
+                });
+                
+                const amountToMove = Math.max(0, currentRegisterAmount - baseAmount);
+                document.getElementById('safe-amount').textContent = `€${amountToMove.toFixed(2)}`;
             } catch (error) {
                 console.error('Error loading register data:', error);
             }

@@ -1806,6 +1806,24 @@ app.get('/api/register/base-amount', (req, res) => {
     });
 });
 
+// Get safe balance
+app.get('/api/safe/balance', (req, res) => {
+    db.get('SELECT SUM(amount) as balance FROM safe_transfers WHERE status = "SUCCESS"', [], (err, row) => {
+        if (err) {
+            console.error('Error fetching safe balance:', err);
+            return res.status(500).json({
+                status: 'ERROR',
+                message: 'Failed to fetch safe balance'
+            });
+        }
+
+        res.json({
+            status: 'SUCCESS',
+            balance: row ? row.balance || 0 : 0
+        });
+    });
+});
+
 // Update register base amount
 app.put('/api/register/base-amount', (req, res) => {
     const { baseAmount } = req.body;
