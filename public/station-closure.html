@@ -211,6 +211,37 @@
             font-weight: 500;
             color: #212529;
         }
+        .message-container {
+            display: none;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.1em;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -229,6 +260,8 @@
         <div class="header">
             <h1>Station Closure</h1>
         </div>
+
+        <div id="message-container" class="message-container"></div>
 
         <form id="closure-form" class="closure-form">
             <div class="section">
@@ -416,6 +449,23 @@
             }
         });
 
+        // Function to show message
+        function showMessage(message, type = 'success') {
+            const messageContainer = document.getElementById('message-container');
+            messageContainer.textContent = message;
+            messageContainer.className = `message-container ${type}-message`;
+            messageContainer.style.display = 'block';
+            
+            // Hide message after 5 seconds
+            setTimeout(() => {
+                messageContainer.style.animation = 'fadeOut 0.3s ease-out';
+                setTimeout(() => {
+                    messageContainer.style.display = 'none';
+                    messageContainer.style.animation = '';
+                }, 300);
+            }, 5000);
+        }
+
         // Save changes
         document.getElementById('save-edit-btn').addEventListener('click', async function(e) {
             e.preventDefault(); // Prevent form submission
@@ -444,7 +494,7 @@
                 const result = await response.json();
                 
                 if (result.status === 'SUCCESS') {
-                    alert('Changes saved successfully');
+                    showMessage('Changes saved successfully');
                     // Reset edit mode
                     document.getElementById('edit-closure-btn').click();
                     // Refresh the display
@@ -454,7 +504,7 @@
                 }
             } catch (error) {
                 console.error('Error saving changes:', error);
-                alert('Error: ' + error.message);
+                showMessage('Error: ' + error.message, 'error');
             }
         });
 
@@ -573,7 +623,7 @@
             try {
                 const station = document.getElementById('station').value;
                 if (!station) {
-                    alert('Please select a station');
+                    showMessage('Please select a station', 'error');
                     return;
                 }
 
@@ -586,7 +636,7 @@
 
                 // Validate numbers
                 if (isNaN(grandTotal) || isNaN(roomCharges) || isNaN(complementary) || isNaN(cardAmount) || isNaN(cashAmount)) {
-                    alert('Please enter valid numbers for all amounts');
+                    showMessage('Please enter valid numbers for all amounts', 'error');
                     return;
                 }
 
@@ -622,7 +672,7 @@
                 }
 
                 if (result.status === 'SUCCESS') {
-                    alert('Station closure processed successfully');
+                    showMessage('Station closure processed successfully');
                     // Clear the form
                     document.getElementById('grand-total').value = '0';
                     document.getElementById('room-charges').value = '0';
@@ -636,7 +686,7 @@
                 }
             } catch (error) {
                 console.error('Error processing station closure:', error);
-                alert('Error: ' + error.message);
+                showMessage('Error: ' + error.message, 'error');
             }
         });
     </script>
